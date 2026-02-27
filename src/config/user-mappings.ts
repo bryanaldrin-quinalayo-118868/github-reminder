@@ -1,16 +1,43 @@
-import type { UserMapping } from '@/types/github';
+const STORAGE_KEY = 'gh-reminder:user-mappings';
 
-// Map GitHub usernames to Teams emails.
-// Team members can add themselves here.
-const USER_MAPPINGS: UserMapping[] = [
-  // { githubUsername: 'octocat', teamsEmail: 'octocat@example.com' },
-];
+// Record of { [githubUsername]: teamsEmail }
+type MappingsRecord = Record<string, string>;
 
-export function getTeamsEmail(githubUsername: string): string | null {
-  const mapping = USER_MAPPINGS.find(
-    (m) => m.githubUsername.toLowerCase() === githubUsername.toLowerCase(),
-  );
-  return mapping?.teamsEmail ?? null;
+function load(): MappingsRecord {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
 }
 
-export default USER_MAPPINGS;
+function save(mappings: MappingsRecord): void {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(mappings));
+}
+
+export function getTeamsEmail(githubUsername: string): string | null {
+  const mappings = load();
+  const key = Object.keys(mappings).find(
+    (k) => k.toLowerCase() === githubUsername.toLowerCase(),
+  );
+  return key ? mappings[key] || null : null;
+}
+
+export function getAllMappings(): MappingsRecord {
+  return load();
+}
+
+export function setMapping(githubUsername: string, teamsEmail: string): void {
+  const mappings = load();
+  mappings[githubUsername] = teamsEmail;
+  save(mappings);
+}
+
+export function setMappings(updates: MappingsRecord): void {
+  const mappings = load();
+  for (const [username, email] of Object.entries(updates)) {
+    mappings[username] = email;
+  }
+  save(mappings);
+}

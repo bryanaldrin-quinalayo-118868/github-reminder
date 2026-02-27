@@ -7,7 +7,7 @@
 
 ## Overview
 
-**GitHub Reminder** is a client-side React application for managing GitHub-related reminders. The project is in its **early/greenfield stage** — scaffolded from the Vite React-TS template with React Compiler enabled.
+**GitHub Reminder** is a client-side React application that tracks open pull requests across the `nelnet-nbs` daycare repositories. It shows pending reviewers (those who haven't approved or commented), and provides notification actions to ping them via Teams. Built on the Vite React-TS template with React Compiler enabled.
 
 ---
 
@@ -22,6 +22,8 @@
 | Styling      | Tailwind CSS (v4, Vite plugin)          | 4.x       |
 | UI Components| shadcn/ui + Radix UI primitives         | —         |
 | Icons        | Lucide React                            | 0.575.x   |
+| Data Fetching| TanStack React Query                    | 5.x       |
+| Notifications| Sonner (toast library)                  | —         |
 | Utilities    | clsx + tailwind-merge (via `cn()`) + class-variance-authority | — |
 | Linting      | ESLint 9 (flat config) + typescript-eslint + react-hooks + react-refresh | — |
 | Module Type  | ESM (`"type": "module"`)                | —         |
@@ -32,7 +34,9 @@
 - **Tailwind CSS v4** is integrated via the `@tailwindcss/vite` plugin — no `tailwind.config` file needed; configuration lives in `src/index.css` using `@theme inline`.
 - **shadcn/ui** is set up with design tokens (oklch color space), dark mode support (`.dark` class strategy), and the `cn()` utility.
 - **Path aliases** are configured: `@/*` maps to `./src/*` (see `tsconfig.json`).
-- **No routing, state management, or data-fetching libraries** are installed yet.
+- **TanStack React Query** is used for data fetching with caching/stale-time management.
+- **Sonner** provides toast notifications (success/warning/info).
+- **Environment variables**: `VITE_GITHUB_TOKEN` in `.env` (gitignored) — required for GitHub API auth.
 
 ---
 
@@ -47,16 +51,28 @@ github-reminder/
 │   │   └── react.svg
 │   ├── components/
 │   │   └── ui/           # shadcn/ui components (auto-generated, customizable)
-│   │       └── button.tsx
+│   ├── config/
+│   │   └── user-mappings.ts  # GitHub username → Teams email mapping
+│   ├── features/
+│   │   └── dashboard/    # Main dashboard feature
+│   │       ├── PRTable.tsx       # PR table with pending reviewers + notify actions
+│   │       └── RepoSelector.tsx  # Repository dropdown selector
+│   ├── hooks/
+│   │   ├── usePullRequests.ts  # TanStack Query hook for open PRs
+│   │   └── useRepos.ts         # TanStack Query hook for daycare repos
 │   ├── lib/
 │   │   └── utils.ts      # cn() helper — clsx + tailwind-merge
-│   ├── App.tsx           # Root application component
-│   ├── App.css           # App-scoped styles (currently empty)
-│   ├── main.tsx          # Entry point — renders <App /> into #root
+│   ├── services/
+│   │   └── github.ts     # GitHub REST API client
+│   ├── types/
+│   │   └── github.ts     # Shared types (Repo, PullRequest, Reviewer, Review, UserMapping)
+│   ├── App.tsx           # Root application component — dashboard layout
+│   ├── main.tsx          # Entry point — QueryClientProvider + Toaster + <App />
 │   └── index.css         # Tailwind v4 imports + shadcn theme tokens
+├── .env                  # Environment variables (gitignored) — VITE_GITHUB_TOKEN
 ├── index.html            # SPA shell — Vite entry
 ├── package.json
-├── vite.config.ts        # Vite + React Compiler + Tailwind CSS config
+├── vite.config.ts        # Vite + React Compiler + Tailwind CSS + path alias config
 ├── tsconfig.json         # Project references root + path aliases
 ├── tsconfig.app.json     # App TypeScript config (strict, ES2022)
 ├── tsconfig.node.json    # Node/tooling TypeScript config
@@ -70,10 +86,12 @@ github-reminder/
 src/
 ├── components/
 │   └── ui/               # shadcn/ui primitives — add via `npx shadcn@latest add <component>`
-├── lib/                  # Shared utilities (cn(), future helpers)
+├── config/               # App configuration (user mappings, constants)
 ├── features/             # Feature-based modules (co-locate components, hooks, types)
-├── hooks/                # Shared custom hooks
-├── services/             # API clients, external integrations (e.g., GitHub API)
+│   └── dashboard/        # Dashboard feature — RepoSelector, PRTable
+├── hooks/                # Shared custom hooks (TanStack Query wrappers)
+├── lib/                  # Shared utilities (cn(), future helpers)
+├── services/             # API clients (GitHub REST API)
 ├── types/                # Shared TypeScript types/interfaces
 ├── utils/                # Pure utility functions
 ├── stores/               # Global state (if Zustand or similar is added)
@@ -178,6 +196,24 @@ Run `npm run lint` before committing.
 - **Consequence**: Add new shadcn components via `npx shadcn@latest add <component>`. Customize freely — they live in `src/components/ui/`. Use `cn()` for class merging and CVA for variant patterns.
 - **Theme**: Design tokens use oklch color space with CSS custom properties. Light/dark themes defined in `src/index.css`.
 
+### ADR-004: TanStack React Query for Data Fetching
+
+- **Status**: Adopted
+- **Context**: GitHub API calls need caching, stale-time management, and loading/error states.
+- **Consequence**: All data fetching goes through TanStack Query hooks in `src/hooks/`. `QueryClientProvider` wraps the app in `main.tsx`. Use `staleTime` to control refetch frequency.
+
+### ADR-005: GitHub API — Client-Side with PAT
+
+- **Status**: Adopted
+- **Context**: The app is fully client-side. GitHub REST API is called directly from the browser using a Personal Access Token stored in `VITE_GITHUB_TOKEN`.
+- **Consequence**: The token is embedded in the client bundle — acceptable for internal team tooling, not for public-facing apps. Service layer lives in `src/services/github.ts`.
+
+### ADR-006: Feature-Based Module Structure
+
+- **Status**: Adopted
+- **Context**: Co-locating feature components keeps related code together and reduces import sprawl.
+- **Consequence**: Each feature gets a folder under `src/features/` (e.g., `dashboard/`). Components, hooks, and types specific to a feature live inside that folder.
+
 ---
 
 ## Roadmap Considerations
@@ -186,12 +222,14 @@ These are areas to address as the app grows:
 
 - [ ] **Routing** — Add `react-router` or `@tanstack/router` when multiple pages are needed.
 - [ ] **State Management** — Consider Zustand or Jotai for global state.
-- [ ] **Data Fetching** — Use TanStack Query for GitHub API integration with caching/retries.
+- [x] **Data Fetching** — TanStack React Query adopted for GitHub API integration.
 - [x] **Styling** — Tailwind CSS v4 + shadcn/ui adopted.
 - [ ] **Testing** — Add Vitest for unit tests and Playwright for E2E.
 - [ ] **CI/CD** — Set up GitHub Actions for lint, type-check, test, and build.
-- [ ] **Environment Variables** — Use Vite's `import.meta.env` with `.env` files for API keys.
-- [x] **Path Aliases** — `@/*` alias configured in `tsconfig.json`.
+- [x] **Environment Variables** — `VITE_GITHUB_TOKEN` in `.env` (gitignored).
+- [x] **Path Aliases** — `@/*` alias configured in `tsconfig.json` + `vite.config.ts`.
+- [ ] **Teams Integration** — Wire up Notify actions to Teams webhooks (currently stubbed with toasts).
+- [ ] **Browser Widget** — Convert to a Chrome/Edge extension for quick access.
 
 ---
 

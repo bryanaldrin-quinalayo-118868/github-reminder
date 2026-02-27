@@ -3,9 +3,19 @@ import { GitPullRequest } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import PRTable from '@/features/dashboard/PRTable'
 import RepoSelector from '@/features/dashboard/RepoSelector'
+import SettingsDialog from '@/features/dashboard/SettingsDialog'
+import usePullRequests from '@/hooks/usePullRequests'
+import type { Reviewer } from '@/types/github'
+
+function getUniqueReviewers(prs: { requested_reviewers: Reviewer[] }[]): Reviewer[] {
+  const all = prs.flatMap((pr) => pr.requested_reviewers)
+  return Array.from(new Map(all.map((r) => [r.id, r])).values())
+}
 
 function App() {
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null)
+  const { data: prs } = usePullRequests(selectedRepo)
+  const reviewers = prs ? getUniqueReviewers(prs) : []
 
   return (
     <div className='flex h-screen flex-col bg-background p-6'>
@@ -23,10 +33,13 @@ function App() {
             </p>
           </div>
         </div>
-        <RepoSelector
-          value={selectedRepo}
-          onChange={setSelectedRepo}
-        />
+        <div className='flex items-center gap-2'>
+          <RepoSelector
+            value={selectedRepo}
+            onChange={setSelectedRepo}
+          />
+          <SettingsDialog reviewers={reviewers} />
+        </div>
       </header>
 
       <Separator className='my-4 shrink-0' />

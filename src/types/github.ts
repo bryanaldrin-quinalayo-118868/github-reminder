@@ -18,14 +18,22 @@ export type Review = {
   state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
 };
 
+export type AdoWorkItem = {
+  id: number;
+  url: string;
+  state: string;
+};
+
 export type PullRequest = {
   id: number;
   number: number;
   title: string;
   html_url: string;
+  body: string | null;
   user: Reviewer;
   requested_reviewers: Reviewer[];
   pendingReviewers: Reviewer[];
+  adoWorkItems: AdoWorkItem[];
 };
 
 export type UserMapping = {

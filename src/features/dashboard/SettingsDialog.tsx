@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { LogIn, Save, Settings } from 'lucide-react'
+import { LogIn, RefreshCw, Save, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -94,6 +94,10 @@ export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
     msalInstance.loginRedirect({ scopes: graphScopes })
   }
 
+  function handleSwitchAccount() {
+    msalInstance.loginRedirect({ scopes: graphScopes, prompt: 'select_account' })
+  }
+
 
   function handleModeChange(mode: string) {
     const m = mode as SendMode
@@ -163,11 +167,20 @@ export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
 
               {signedIn ? (
                 <div className='flex flex-col gap-3'>
-                  <div className='flex items-center gap-2 rounded-md border p-3'>
+                  <div className='flex items-center justify-between rounded-md border p-3'>
                     <div className='flex flex-col'>
                       <span className='text-sm font-medium'>{account?.name ?? 'Signed in'}</span>
                       <span className='text-xs text-muted-foreground'>{account?.username}</span>
                     </div>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      className='cursor-pointer gap-1.5'
+                      onClick={handleSwitchAccount}
+                    >
+                      <RefreshCw className='h-3.5 w-3.5' />
+                      Switch
+                    </Button>
                   </div>
 
                   <div className='flex flex-col gap-1'>

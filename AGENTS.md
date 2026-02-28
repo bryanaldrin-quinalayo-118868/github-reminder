@@ -23,6 +23,7 @@
 | UI Components| shadcn/ui + Radix UI primitives         | —         |
 | Icons        | Lucide React                            | 0.575.x   |
 | Data Fetching| TanStack React Query                    | 5.x       |
+| Auth         | MSAL Browser (@azure/msal-browser)      | 4.x       |
 | Notifications| Sonner (toast library)                  | —         |
 | Utilities    | clsx + tailwind-merge (via `cn()`) + class-variance-authority | — |
 | Linting      | ESLint 9 (flat config) + typescript-eslint + react-hooks + react-refresh | — |
@@ -36,7 +37,13 @@
 - **Path aliases** are configured: `@/*` maps to `./src/*` (see `tsconfig.json`).
 - **TanStack React Query** is used for data fetching with caching/stale-time management.
 - **Sonner** provides toast notifications (success/warning/info).
-- **Environment variables**: `VITE_GITHUB_TOKEN` in `.env` (gitignored) — required for GitHub API auth.
+- **MSAL** is configured for Azure AD OAuth2 with incremental consent. Used for Teams messaging (channel and chat).
+- **Azure DevOps** integration fetches work item statuses via REST API with a PAT.
+- **Environment variables** in `.env` (gitignored):
+  - `VITE_GITHUB_TOKEN` — GitHub PAT for repo/PR access.
+  - `VITE_MSAL_CLIENT_ID` — Azure AD app registration client ID.
+  - `VITE_MSAL_TENANT_ID` — Azure AD tenant ID.
+  - `VITE_ADO_PAT` — Azure DevOps PAT with **Work Items (Read)** scope.
 
 ---
 
@@ -52,24 +59,30 @@ github-reminder/
 │   ├── components/
 │   │   └── ui/           # shadcn/ui components (auto-generated, customizable)
 │   ├── config/
-│   │   └── user-mappings.ts  # GitHub username → Teams email mapping
+│   │   ├── msal.ts           # MSAL instance + scopes configuration
+│   │   ├── teams-settings.ts # Teams send mode/channel/chat localStorage settings
+│   │   └── user-mappings.ts  # GitHub→Teams email mapping (GitHub repo + localStorage cache)
 │   ├── features/
 │   │   └── dashboard/    # Main dashboard feature
-│   │       ├── PRTable.tsx       # PR table with pending reviewers + notify actions
-│   │       └── RepoSelector.tsx  # Repository dropdown selector
+│   │       ├── PRTable.tsx        # PR table with filters, ADO pills, notify actions
+│   │       ├── RepoSelector.tsx   # Repository dropdown selector
+│   │       └── SettingsDialog.tsx  # Teams connection, send mode, user mappings
 │   ├── hooks/
 │   │   ├── usePullRequests.ts  # TanStack Query hook for open PRs
 │   │   └── useRepos.ts         # TanStack Query hook for daycare repos
 │   ├── lib/
 │   │   └── utils.ts      # cn() helper — clsx + tailwind-merge
 │   ├── services/
-│   │   └── github.ts     # GitHub REST API client
+│   │   ├── ado.ts        # Azure DevOps REST API — work item states + color mapping
+│   │   ├── github.ts     # GitHub REST API — repos, PRs, reviews, user-mappings file
+│   │   └── graph.ts      # Microsoft Graph API — Teams channels, chats, messaging
 │   ├── types/
-│   │   └── github.ts     # Shared types (Repo, PullRequest, Reviewer, Review, UserMapping)
+│   │   └── github.ts     # Shared types (Repo, PullRequest, Reviewer, Review, AdoWorkItem)
 │   ├── App.tsx           # Root application component — dashboard layout
 │   ├── main.tsx          # Entry point — QueryClientProvider + Toaster + <App />
 │   └── index.css         # Tailwind v4 imports + shadcn theme tokens
-├── .env                  # Environment variables (gitignored) — VITE_GITHUB_TOKEN
+├── user-mappings.json    # Shared GitHub→Teams email mappings (committed to repo)
+├── .env                  # Environment variables (gitignored) — see Key Notes
 ├── index.html            # SPA shell — Vite entry
 ├── package.json
 ├── vite.config.ts        # Vite + React Compiler + Tailwind CSS + path alias config
@@ -86,12 +99,12 @@ github-reminder/
 src/
 ├── components/
 │   └── ui/               # shadcn/ui primitives — add via `npx shadcn@latest add <component>`
-├── config/               # App configuration (user mappings, constants)
+├── config/               # App configuration (MSAL, Teams settings, user mappings)
 ├── features/             # Feature-based modules (co-locate components, hooks, types)
 │   └── dashboard/        # Dashboard feature — RepoSelector, PRTable
 ├── hooks/                # Shared custom hooks (TanStack Query wrappers)
 ├── lib/                  # Shared utilities (cn(), future helpers)
-├── services/             # API clients (GitHub REST API)
+├── services/             # API clients (GitHub, Azure DevOps, Microsoft Graph)
 ├── types/                # Shared TypeScript types/interfaces
 ├── utils/                # Pure utility functions
 ├── stores/               # Global state (if Zustand or similar is added)
@@ -214,6 +227,30 @@ Run `npm run lint` before committing.
 - **Context**: Co-locating feature components keeps related code together and reduces import sprawl.
 - **Consequence**: Each feature gets a folder under `src/features/` (e.g., `dashboard/`). Components, hooks, and types specific to a feature live inside that folder.
 
+### ADR-007: MSAL for Teams Notifications
+
+- **Status**: Adopted
+- **Context**: The app sends PR review reminders via Microsoft Teams. MSAL Browser handles OAuth2 with Azure AD, supporting incremental consent for Graph API scopes (`Team.ReadBasic.All`, `Channel.ReadBasic.All`, `ChannelMessage.Send`, `Chat.ReadWrite`).
+- **Consequence**: `src/config/msal.ts` exports the singleton instance. `src/services/graph.ts` handles token acquisition and Graph API calls. Settings (send mode, team/channel/chat) are persisted in localStorage.
+
+### ADR-008: Azure DevOps Work Item Integration
+
+- **Status**: Adopted
+- **Context**: PRs often reference ADO work items in their description. The app parses these links, batch-fetches their states from the ADO REST API, and displays them as colored status pills.
+- **Consequence**: `src/services/ado.ts` handles ADO API calls. `VITE_ADO_PAT` is required. ADO fetch is non-blocking — if the PAT is missing or invalid, PRs still load without work item data.
+
+### ADR-009: Shared User Mappings via GitHub Repo File
+
+- **Status**: Adopted
+- **Context**: GitHub username → Teams email mappings need to be shared across team members. The mappings JSON file (`user-mappings.json`) lives in the repo root and is read/written via the GitHub Contents API.
+- **Consequence**: On app startup, mappings are fetched from GitHub and cached in localStorage. The SettingsDialog allows editing and saving (commits to repo). `src/config/user-mappings.ts` manages the read/write/cache lifecycle.
+
+### ADR-010: Avoid Radix UI Inside Frequently Re-rendering Contexts
+
+- **Status**: Adopted
+- **Context**: Radix Select (used by shadcn/ui `<Select>`) causes freezes when used inside components that re-render on filter state changes, especially with React Compiler enabled.
+- **Consequence**: Use native `<select>` elements for filter dropdowns in the PR table. Radix/shadcn Select is fine in low-frequency contexts like dialogs.
+
 ---
 
 ## Roadmap Considerations
@@ -228,7 +265,9 @@ These are areas to address as the app grows:
 - [ ] **CI/CD** — Set up GitHub Actions for lint, type-check, test, and build.
 - [x] **Environment Variables** — `VITE_GITHUB_TOKEN` in `.env` (gitignored).
 - [x] **Path Aliases** — `@/*` alias configured in `tsconfig.json` + `vite.config.ts`.
-- [ ] **Teams Integration** — Wire up Notify actions to Teams webhooks (currently stubbed with toasts).
+- [x] **Teams Integration** — MSAL + Graph API for channel and chat messaging.
+- [x] **ADO Integration** — Work item status pills parsed from PR descriptions.
+- [x] **Shared User Mappings** — GitHub repo JSON file as source of truth.
 - [ ] **Browser Widget** — Convert to a Chrome/Edge extension for quick access.
 
 ---

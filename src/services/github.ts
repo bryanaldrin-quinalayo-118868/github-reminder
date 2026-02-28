@@ -1,4 +1,5 @@
 import type { Repo, PullRequest, Review } from '@/types/github';
+import { fetchWorkItemStates } from '@/services/ado';
 
 const GITHUB_API = 'https://api.github.com';
 const ORG = 'nelnet-nbs';
@@ -51,8 +52,18 @@ async function fetchPRReviews(repoName: string, prNumber: number): Promise<Revie
   return res.json();
 }
 
+function parseAdoIds(body: string | null): number[] {
+  if (!body) return [];
+  const matches = body.matchAll(/https:\/\/dev\.azure\.com\/[^\s)]+\/_workitems\/edit\/(\d+)/g);
+  const ids = new Set<number>();
+  for (const m of matches) {
+    ids.add(Number(m[1]));
+  }
+  return [...ids];
+}
+
 export async function fetchOpenPullRequests(repoName: string): Promise<PullRequest[]> {
-  const rawPrs: Omit<PullRequest, 'pendingReviewers'>[] = [];
+  const rawPrs: Omit<PullRequest, 'pendingReviewers' | 'adoWorkItems'>[] = [];
   let page = 1;
   const perPage = 100;
 
@@ -74,8 +85,19 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
     page++;
   }
 
+  // Parse ADO work item IDs from all PRs and batch-fetch their states (non-blocking)
+  const prAdoIds = rawPrs.map((pr) => parseAdoIds(pr.body));
+  const allAdoIds = [...new Set(prAdoIds.flat())];
+  let adoMap = new Map<number, { id: number; url: string; state: string }>();
+  try {
+    const adoItems = await fetchWorkItemStates(allAdoIds);
+    adoMap = new Map(adoItems.map((wi) => [wi.id, wi]));
+  } catch {
+    // ADO fetch failed (PAT missing or invalid) — continue without statuses
+  }
+
   const prs = await Promise.all(
-    rawPrs.map(async (pr) => {
+    rawPrs.map(async (pr, i) => {
       const reviews = await fetchPRReviews(repoName, pr.number);
 
       // Get the latest review state per user
@@ -96,7 +118,11 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
         (reviewer) => !reviewedUserIds.has(reviewer.id),
       );
 
-      return { ...pr, pendingReviewers };
+      const adoWorkItems = prAdoIds[i]
+        .map((id) => adoMap.get(id))
+        .filter((wi): wi is NonNullable<typeof wi> => !!wi);
+
+      return { ...pr, pendingReviewers, adoWorkItems };
     }),
   );
 

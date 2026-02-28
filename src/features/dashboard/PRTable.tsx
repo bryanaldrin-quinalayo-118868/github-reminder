@@ -1,9 +1,9 @@
-import { Bell, ExternalLink } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Bell, ChevronDown, ExternalLink, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Table,
@@ -16,6 +16,7 @@ import {
 import { msalInstance } from '@/config/msal'
 import { getTeamsSettings } from '@/config/teams-settings'
 import { getTeamsEmail } from '@/config/user-mappings'
+import { getStateColor } from '@/services/ado'
 import { sendChannelMessage, sendChatMessage } from '@/services/graph'
 import usePullRequests from '@/hooks/usePullRequests'
 import type { PullRequest, Reviewer } from '@/types/github'
@@ -113,6 +114,216 @@ function ReviewerBadge({ reviewer }: { reviewer: Reviewer }) {
   )
 }
 
+type MultiSelectProps = {
+  label: string;
+  selected: Set<string>;
+  options: string[];
+  onChange: (next: Set<string>) => void;
+  renderOption?: (value: string) => React.ReactNode;
+  width?: string;
+};
+
+function MultiSelect({ label, selected, options, onChange, renderOption, width = 'w-40' }: MultiSelectProps) {
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+
+  function toggle(value: string) {
+    const next = new Set(selected)
+    if (next.has(value)) {
+      next.delete(value)
+    } else {
+      next.add(value)
+    }
+    onChange(next)
+  }
+
+  function clear() {
+    onChange(new Set())
+    if (detailsRef.current) detailsRef.current.open = false
+  }
+
+  return (
+    <details ref={detailsRef} className='relative'>
+      <summary
+        className={`flex h-8 ${width} cursor-pointer items-center justify-between rounded-md border bg-background px-2 text-xs outline-none list-none`}
+      >
+        <span className='truncate'>
+          {selected.size === 0 ? label : `${label} (${selected.size})`}
+        </span>
+        <ChevronDown className='h-3 w-3 shrink-0 text-muted-foreground' />
+      </summary>
+      <div className='absolute left-0 top-9 z-50 min-w-full rounded-md border bg-popover p-1 shadow-md'>
+        {selected.size > 0 && (
+          <button
+            type='button'
+            onClick={clear}
+            className='mb-1 flex w-full items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent'
+          >
+            <X className='h-3 w-3' />
+            Clear
+          </button>
+        )}
+        {options.map((opt) => (
+          <label
+            key={opt}
+            className='flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-xs hover:bg-accent'
+          >
+            <input
+              type='checkbox'
+              checked={selected.has(opt)}
+              onChange={() => toggle(opt)}
+              className='accent-primary'
+            />
+            {renderOption ? renderOption(opt) : opt}
+          </label>
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function PRDataTable({ prs }: { prs: PullRequest[] }) {
+  const [adoFilters, setAdoFilters] = useState<Set<string>>(new Set())
+  const [reviewerFilters, setReviewerFilters] = useState<Set<string>>(new Set())
+
+  const filteredPrs = prs.filter((pr) => {
+    if (adoFilters.size > 0 && !pr.adoWorkItems.some((wi) => adoFilters.has(wi.state))) return false
+    if (reviewerFilters.size > 0 && !pr.pendingReviewers.some((r) => reviewerFilters.has(r.login))) return false
+    return true
+  })
+
+  // Collect unique ADO states and reviewers for filter dropdowns (from all PRs, not filtered)
+  const adoStates = [...new Set(prs.flatMap((pr) => pr.adoWorkItems.map((wi) => wi.state)))].sort()
+  const allReviewerLogins = [...new Map(
+    prs.flatMap((pr) => pr.pendingReviewers).map((r) => [r.login, r]),
+  ).values()].sort((a, b) => a.login.localeCompare(b.login)).map((r) => r.login)
+
+  return (
+    <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='flex items-center gap-2'>
+          <Badge variant='secondary' className='tabular-nums'>
+            {filteredPrs.length} of {prs.length} open
+          </Badge>
+
+          <MultiSelect
+            label='ADO State'
+            selected={adoFilters}
+            options={adoStates}
+            onChange={setAdoFilters}
+            width='w-40'
+            renderOption={(state) => {
+              const color = getStateColor(state)
+              return <span className={color.text}>{state}</span>
+            }}
+          />
+
+          <MultiSelect
+            label='Reviewer'
+            selected={reviewerFilters}
+            options={allReviewerLogins}
+            onChange={setReviewerFilters}
+            width='w-44'
+          />
+        </div>
+
+        <Button
+          size='sm'
+          variant='outline'
+          className='cursor-pointer gap-1.5'
+          onClick={() => notifyAllReviewers(filteredPrs)}
+        >
+          <Bell className='h-3.5 w-3.5' />
+          Notify All
+        </Button>
+      </div>
+
+      <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
+        <Table>
+          <TableHeader>
+            <TableRow className='hover:bg-transparent'>
+              <TableHead className='w-[40%]'>PR Title</TableHead>
+              <TableHead>Work Item</TableHead>
+              <TableHead>Pending Reviewers</TableHead>
+              <TableHead className='w-24 text-right'>Action</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredPrs.length > 0 ? (
+              filteredPrs.map((pr) => (
+                <TableRow key={pr.id}>
+                  <TableCell>
+                    <a
+                      href={pr.html_url}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='group flex items-center gap-1.5 font-medium hover:underline'
+                    >
+                      <span className='line-clamp-1'>{pr.title}</span>
+                      <ExternalLink className='h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
+                    </a>
+                    <span className='text-xs text-muted-foreground'>#{pr.number}</span>
+                  </TableCell>
+                  <TableCell>
+                    {pr.adoWorkItems.length > 0 ? (
+                      <div className='flex flex-wrap gap-1'>
+                        {pr.adoWorkItems.map((wi) => {
+                          const color = getStateColor(wi.state)
+                          return (
+                            <a
+                              key={wi.id}
+                              href={wi.url}
+                              target='_blank'
+                              rel='noopener noreferrer'
+                              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${color.bg} ${color.text} hover:opacity-80 transition-opacity`}
+                            >
+                              #{wi.id}
+                              <span className='hidden sm:inline'>· {wi.state}</span>
+                            </a>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <span className='text-xs text-muted-foreground'>—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {pr.pendingReviewers.length > 0 ? (
+                      <div className='flex flex-wrap gap-2'>
+                        {pr.pendingReviewers.map((reviewer) => (
+                          <ReviewerBadge key={reviewer.id} reviewer={reviewer} />
+                        ))}
+                      </div>
+                    ) : (
+                      <span className='text-xs text-muted-foreground'>All reviewed</span>
+                    )}
+                  </TableCell>
+                  <TableCell className='text-right'>
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      className='cursor-pointer gap-1.5'
+                      onClick={() => notifyReviewers(pr.pendingReviewers, pr.title, pr.html_url)}
+                    >
+                      <Bell className='h-3.5 w-3.5' />
+                      Notify
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={4} className='h-24 text-center text-muted-foreground'>
+                  No results match the current filters.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  )
+}
+
 export default function PRTable({ repoName }: PRTableProps) {
   const { data: prs, isLoading, isError } = usePullRequests(repoName)
 
@@ -150,83 +361,5 @@ export default function PRTable({ repoName }: PRTableProps) {
     )
   }
 
-  return (
-    <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
-      <div className='flex items-center justify-between'>
-        <div className='flex items-center gap-2'>
-          <Badge variant='secondary' className='tabular-nums'>
-            {prs.length} open
-          </Badge>
-        </div>
-        <Button
-          size='sm'
-          variant='outline'
-          className='cursor-pointer gap-1.5'
-          onClick={() => notifyAllReviewers(prs)}
-        >
-          <Bell className='h-3.5 w-3.5' />
-          Notify All
-        </Button>
-      </div>
-
-      <ScrollArea className='flex-1 rounded-md border'>
-        <Table>
-          <TableHeader>
-            <TableRow className='hover:bg-transparent'>
-              <TableHead className='w-[50%]'>PR Title</TableHead>
-              <TableHead>Pending Reviewers</TableHead>
-              <TableHead className='w-24 text-right'>Action</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {prs.map((pr) => (
-              <TableRow key={pr.id}>
-                <TableCell>
-                  <a
-                    href={pr.html_url}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                    className='group flex items-center gap-1.5 font-medium hover:underline'
-                  >
-                    <span className='line-clamp-1'>{pr.title}</span>
-                    <ExternalLink className='h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
-                  </a>
-                  <span className='text-xs text-muted-foreground'>
-                    #{pr.number}
-                  </span>
-                </TableCell>
-                <TableCell>
-                  {pr.pendingReviewers.length > 0 ? (
-                    <div className='flex flex-wrap gap-2'>
-                      {pr.pendingReviewers.map((reviewer) => (
-                        <ReviewerBadge
-                          key={reviewer.id}
-                          reviewer={reviewer}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <span className='text-xs text-muted-foreground'>
-                      All reviewed
-                    </span>
-                  )}
-                </TableCell>
-                <TableCell className='text-right'>
-                  <Button
-                    size='sm'
-                    variant='ghost'
-                    className='cursor-pointer gap-1.5'
-                    onClick={() => notifyReviewers(pr.pendingReviewers, pr.title, pr.html_url)}
-                  >
-                    <Bell className='h-3.5 w-3.5' />
-                    Notify
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </ScrollArea>
-    </div>
-  )
+  return <PRDataTable prs={prs} />
 }

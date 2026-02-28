@@ -13,7 +13,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { msalInstance } from '@/config/msal'
+import { getTeamsSettings } from '@/config/teams-settings'
 import { getTeamsEmail } from '@/config/user-mappings'
+import { sendChannelMessage, sendChatMessage } from '@/services/graph'
 import usePullRequests from '@/hooks/usePullRequests'
 import type { PullRequest, Reviewer } from '@/types/github'
 
@@ -21,7 +24,11 @@ type PRTableProps = {
   repoName: string | null;
 };
 
-function notifyReviewers(reviewers: Reviewer[]) {
+async function notifyReviewers(
+  reviewers: Reviewer[],
+  prTitle: string,
+  prUrl: string,
+): Promise<void> {
   const mapped = reviewers.map((r) => ({
     login: r.login,
     email: getTeamsEmail(r.login),
@@ -29,12 +36,6 @@ function notifyReviewers(reviewers: Reviewer[]) {
 
   const withEmail = mapped.filter((m) => m.email)
   const withoutEmail = mapped.filter((m) => !m.email)
-
-  if (withEmail.length > 0) {
-    toast.success(
-      `Notified: ${withEmail.map((m) => m.login).join(', ')}`,
-    )
-  }
 
   if (withoutEmail.length > 0) {
     toast.warning(
@@ -44,15 +45,53 @@ function notifyReviewers(reviewers: Reviewer[]) {
 
   if (mapped.length === 0) {
     toast.info('No reviewers to notify.')
+    return
+  }
+
+  if (withEmail.length === 0) return
+
+  const isSignedIn = msalInstance.getAllAccounts().length > 0
+  const settings = getTeamsSettings()
+
+  const isChannelReady = settings.sendMode === 'channel' && settings.teamId && settings.channelId
+  const isChatReady = settings.sendMode === 'chat' && settings.chatId
+
+  if (!isSignedIn || (!isChannelReady && !isChatReady)) {
+    toast.warning('Teams not configured. Go to Settings to sign in and select a destination.')
+    return
+  }
+
+  const reviewerPayload = withEmail.map((m) => ({ email: m.email!, displayName: m.login }))
+
+  try {
+    if (settings.sendMode === 'chat' && settings.chatId) {
+      await sendChatMessage(settings.chatId, prTitle, prUrl, reviewerPayload)
+    } else if (settings.teamId && settings.channelId) {
+      await sendChannelMessage(settings.teamId, settings.channelId, prTitle, prUrl, reviewerPayload)
+    }
+    toast.success(`Notified: ${withEmail.map((m) => m.login).join(', ')}`)
+  } catch (err) {
+    toast.error(`Failed to send Teams message: ${err instanceof Error ? err.message : 'Unknown error'}`)
   }
 }
 
-function notifyAll(prs: PullRequest[]) {
-  const allReviewers = prs.flatMap((pr) => pr.pendingReviewers)
-  const unique = Array.from(
-    new Map(allReviewers.map((r) => [r.id, r])).values(),
-  )
-  notifyReviewers(unique)
+async function notifyAllReviewers(prs: PullRequest[]): Promise<void> {
+  const isSignedIn = msalInstance.getAllAccounts().length > 0
+  const settings = getTeamsSettings()
+
+  const isChannelReady = settings.sendMode === 'channel' && settings.teamId && settings.channelId
+  const isChatReady = settings.sendMode === 'chat' && settings.chatId
+
+  if (!isSignedIn || (!isChannelReady && !isChatReady)) {
+    toast.warning('Teams not configured. Go to Settings to sign in and select a destination.')
+    return
+  }
+
+  for (const pr of prs) {
+    if (pr.pendingReviewers.length > 0) {
+      await notifyReviewers(pr.pendingReviewers, pr.title, pr.html_url)
+    }
+  }
 }
 
 function ReviewerBadge({ reviewer }: { reviewer: Reviewer }) {
@@ -123,7 +162,7 @@ export default function PRTable({ repoName }: PRTableProps) {
           size='sm'
           variant='outline'
           className='cursor-pointer gap-1.5'
-          onClick={() => notifyAll(prs)}
+          onClick={() => notifyAllReviewers(prs)}
         >
           <Bell className='h-3.5 w-3.5' />
           Notify All
@@ -177,7 +216,7 @@ export default function PRTable({ repoName }: PRTableProps) {
                     size='sm'
                     variant='ghost'
                     className='cursor-pointer gap-1.5'
-                    onClick={() => notifyReviewers(pr.pendingReviewers)}
+                    onClick={() => notifyReviewers(pr.pendingReviewers, pr.title, pr.html_url)}
                   >
                     <Bell className='h-3.5 w-3.5' />
                     Notify

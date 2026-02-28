@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GitPullRequest } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
+import { fetchMappings } from '@/config/user-mappings'
 import PRTable from '@/features/dashboard/PRTable'
 import RepoSelector from '@/features/dashboard/RepoSelector'
 import SettingsDialog from '@/features/dashboard/SettingsDialog'
@@ -13,9 +14,15 @@ function getUniqueReviewers(prs: { requested_reviewers: Reviewer[] }[]): Reviewe
 }
 
 function App() {
-  const [selectedRepo, setSelectedRepo] = useState<string | null>(null)
+  const [selectedRepo, setSelectedRepo] = useState<string | null>(
+    () => localStorage.getItem('gh-reminder:selected-repo'),
+  )
   const { data: prs } = usePullRequests(selectedRepo)
   const reviewers = prs ? getUniqueReviewers(prs) : []
+
+  useEffect(() => {
+    fetchMappings()
+  }, [])
 
   return (
     <div className='flex h-screen flex-col bg-background p-6'>
@@ -36,7 +43,10 @@ function App() {
         <div className='flex items-center gap-2'>
           <RepoSelector
             value={selectedRepo}
-            onChange={setSelectedRepo}
+            onChange={(repo) => {
+              setSelectedRepo(repo)
+              localStorage.setItem('gh-reminder:selected-repo', repo)
+            }}
           />
           <SettingsDialog reviewers={reviewers} />
         </div>

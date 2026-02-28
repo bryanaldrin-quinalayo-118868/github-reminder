@@ -1,9 +1,17 @@
 const STORAGE_KEY = 'gh-reminder:user-mappings';
+const GITHUB_API = 'https://api.github.com';
+const OWNER = 'bryanaldrin-quinalayo-118868';
+const REPO = 'github-reminder';
+const FILE_PATH = 'user-mappings.json';
 
 // Record of { [githubUsername]: teamsEmail }
 type MappingsRecord = Record<string, string>;
 
-function load(): MappingsRecord {
+function getToken(): string {
+  return import.meta.env.VITE_GITHUB_TOKEN as string;
+}
+
+function loadCache(): MappingsRecord {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -12,12 +20,14 @@ function load(): MappingsRecord {
   }
 }
 
-function save(mappings: MappingsRecord): void {
+function saveCache(mappings: MappingsRecord): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(mappings));
 }
 
+// --- Sync reads (from local cache) ---
+
 export function getTeamsEmail(githubUsername: string): string | null {
-  const mappings = load();
+  const mappings = loadCache();
   const key = Object.keys(mappings).find(
     (k) => k.toLowerCase() === githubUsername.toLowerCase(),
   );
@@ -25,19 +35,74 @@ export function getTeamsEmail(githubUsername: string): string | null {
 }
 
 export function getAllMappings(): MappingsRecord {
-  return load();
+  return loadCache();
 }
 
-export function setMapping(githubUsername: string, teamsEmail: string): void {
-  const mappings = load();
-  mappings[githubUsername] = teamsEmail;
-  save(mappings);
-}
+// --- Async GitHub operations ---
 
-export function setMappings(updates: MappingsRecord): void {
-  const mappings = load();
-  for (const [username, email] of Object.entries(updates)) {
-    mappings[username] = email;
+export async function fetchMappings(): Promise<MappingsRecord> {
+  const res = await fetch(
+    `${GITHUB_API}/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`,
+    {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${getToken()}`,
+      },
+    },
+  );
+
+  if (!res.ok) {
+    return loadCache();
   }
-  save(mappings);
+
+  const data = await res.json();
+  const content = atob(data.content);
+  const remote: MappingsRecord = JSON.parse(content);
+
+  saveCache(remote);
+  return remote;
+}
+
+export async function saveMappings(mappings: MappingsRecord): Promise<void> {
+  // Get current file SHA (required for updates)
+  const getRes = await fetch(
+    `${GITHUB_API}/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`,
+    {
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${getToken()}`,
+      },
+    },
+  );
+
+  if (!getRes.ok) {
+    throw new Error('Failed to fetch current mappings file from GitHub');
+  }
+
+  const current = await getRes.json();
+  const encoded = btoa(JSON.stringify(mappings, null, 2));
+
+  const putRes = await fetch(
+    `${GITHUB_API}/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`,
+    {
+      method: 'PUT',
+      headers: {
+        Accept: 'application/vnd.github+json',
+        Authorization: `Bearer ${getToken()}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: 'chore: update user email mappings',
+        content: encoded,
+        sha: current.sha,
+      }),
+    },
+  );
+
+  if (!putRes.ok) {
+    const body = await putRes.text();
+    throw new Error(`Failed to save mappings: ${putRes.status} — ${body}`);
+  }
+
+  saveCache(mappings);
 }

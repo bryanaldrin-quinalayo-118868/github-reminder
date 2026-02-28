@@ -18,7 +18,12 @@ export default function RepoSelector({ value, onChange }: RepoSelectorProps) {
   const { data: repos, isLoading, isError } = useRepos()
 
   if (isLoading) {
-    return <Skeleton className='h-9 w-72' />
+    return (
+      <div className='flex w-full items-center gap-2 rounded-md border px-3 py-2'>
+        <Skeleton className='h-4 w-4 shrink-0 rounded' />
+        <Skeleton className='h-4 w-40' />
+      </div>
+    )
   }
 
   if (isError) {
@@ -34,7 +39,7 @@ export default function RepoSelector({ value, onChange }: RepoSelectorProps) {
       value={value ?? undefined}
       onValueChange={onChange}
     >
-      <SelectTrigger className='w-72 cursor-pointer'>
+      <SelectTrigger className='w-full cursor-pointer'>
         <div className='flex items-center gap-2'>
           <GitBranch className='h-4 w-4 text-muted-foreground' />
           <SelectValue placeholder='Select a repository' />

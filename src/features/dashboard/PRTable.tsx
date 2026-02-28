@@ -128,37 +128,35 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
 
   return (
     <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
-      <div className='flex items-center justify-between gap-2'>
-        <div className='flex items-center gap-2'>
-          <Badge variant='secondary' className='tabular-nums'>
-            {filteredPrs.length} of {prs.length} open
-          </Badge>
+      <div className='flex flex-wrap items-center gap-2'>
+        <Badge variant='secondary' className='tabular-nums'>
+          {filteredPrs.length} of {prs.length} open
+        </Badge>
 
-          <MultiSelect
-            label='ADO State'
-            selected={adoFilters}
-            options={adoStates}
-            onChange={setAdoFilters}
-            width='w-40'
-            renderOption={(state) => {
-              const color = getStateColor(state)
-              return <span className={color.text}>{state}</span>
-            }}
-          />
+        <MultiSelect
+          label='ADO State'
+          selected={adoFilters}
+          options={adoStates}
+          onChange={setAdoFilters}
+          width='w-32 sm:w-40'
+          renderOption={(state) => {
+            const color = getStateColor(state)
+            return <span className={color.text}>{state}</span>
+          }}
+        />
 
-          <MultiSelect
-            label='Reviewer'
-            selected={reviewerFilters}
-            options={allReviewerLogins}
-            onChange={setReviewerFilters}
-            width='w-44'
-          />
-        </div>
+        <MultiSelect
+          label='Reviewer'
+          selected={reviewerFilters}
+          options={allReviewerLogins}
+          onChange={setReviewerFilters}
+          width='w-32 sm:w-44'
+        />
 
         <Button
           size='sm'
           variant='outline'
-          className='cursor-pointer gap-1.5'
+          className='ml-auto cursor-pointer gap-1.5'
           onClick={() => {
             const entries: NotifyEntry[] = filteredPrs
               .filter((pr) => pr.pendingReviewers.length > 0)
@@ -174,7 +172,76 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
         </Button>
       </div>
 
-      <div className='min-h-0 flex-1 overflow-auto rounded-md border'>
+      {/* Mobile + Tablet card layout */}
+      <div className='min-h-0 flex-1 overflow-auto lg:hidden'>
+        {filteredPrs.length > 0 ? (
+          <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
+            {filteredPrs.map((pr) => (
+              <div key={pr.id} className='flex flex-col gap-2 rounded-lg border p-3'>
+                <div className='flex items-start justify-between gap-2'>
+                  <div className='min-w-0 flex-1'>
+                    <a
+                      href={pr.html_url}
+                      target='_blank'
+                      rel='noopener noreferrer'
+                      className='group flex items-center gap-1 text-sm font-medium hover:underline'
+                    >
+                      <span className='line-clamp-2'>{pr.title}</span>
+                      <ExternalLink className='h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
+                    </a>
+                    <span className='text-xs text-muted-foreground'>#{pr.number}</span>
+                  </div>
+                  <Button
+                    size='sm'
+                    variant='ghost'
+                    className='shrink-0 cursor-pointer gap-1'
+                    onClick={() => {
+                      setNotifyEntries([{ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }])
+                      setNotifyOpen(true)
+                    }}
+                  >
+                    <Bell className='h-3.5 w-3.5' />
+                  </Button>
+                </div>
+
+                {pr.adoWorkItems.length > 0 && (
+                  <div className='flex flex-wrap gap-1'>
+                    {pr.adoWorkItems.map((wi) => {
+                      const color = getStateColor(wi.state)
+                      return (
+                        <a
+                          key={wi.id}
+                          href={wi.url}
+                          target='_blank'
+                          rel='noopener noreferrer'
+                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${color.bg} ${color.text} hover:opacity-80 transition-opacity`}
+                        >
+                          #{wi.id} · {wi.state}
+                        </a>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {pr.pendingReviewers.length > 0 && (
+                  <div className='flex flex-wrap gap-1.5'>
+                    {pr.pendingReviewers.map((reviewer) => (
+                      <ReviewerBadge key={reviewer.id} reviewer={reviewer} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className='flex h-24 items-center justify-center text-sm text-muted-foreground'>
+            No results match the current filters.
+          </div>
+        )}
+      </div>
+
+      {/* Desktop table layout */}
+      <div className='hidden min-h-0 flex-1 overflow-auto rounded-md border lg:block'>
         <Table>
           <TableHeader>
             <TableRow className='hover:bg-transparent'>
@@ -214,7 +281,7 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
                               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${color.bg} ${color.text} hover:opacity-80 transition-opacity`}
                             >
                               #{wi.id}
-                              <span className='hidden sm:inline'>· {wi.state}</span>
+                              <span className='hidden lg:inline'>· {wi.state}</span>
                             </a>
                           )
                         })}
@@ -240,9 +307,9 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
                       variant='ghost'
                       className='cursor-pointer gap-1.5'
                       onClick={() => {
-                      setNotifyEntries([{ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }])
-                      setNotifyOpen(true)
-                    }}
+                        setNotifyEntries([{ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }])
+                        setNotifyOpen(true)
+                      }}
                     >
                       <Bell className='h-3.5 w-3.5' />
                       Notify
@@ -285,10 +352,60 @@ export default function PRTable({ repoName }: PRTableProps) {
 
   if (isLoading) {
     return (
-      <div className='flex flex-1 flex-col gap-3 p-4'>
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className='h-12 w-full' />
-        ))}
+      <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
+        {/* Filter bar skeleton */}
+        <div className='flex flex-wrap items-center gap-2'>
+          <Skeleton className='h-6 w-24' />
+          <Skeleton className='h-8 w-32 sm:w-40' />
+          <Skeleton className='h-8 w-32 sm:w-44' />
+          <Skeleton className='ml-auto h-8 w-24' />
+        </div>
+
+        {/* Mobile + Tablet card skeletons */}
+        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden'>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className='flex flex-col gap-2 rounded-lg border p-3'>
+              <div className='flex items-start justify-between gap-2'>
+                <div className='flex flex-1 flex-col gap-1'>
+                  <Skeleton className='h-4 w-3/4' />
+                  <Skeleton className='h-3 w-12' />
+                </div>
+                <Skeleton className='h-8 w-8 shrink-0' />
+              </div>
+              <div className='flex gap-1'>
+                <Skeleton className='h-5 w-20 rounded-full' />
+              </div>
+              <div className='flex gap-1.5'>
+                <Skeleton className='h-6 w-6 rounded-full' />
+                <Skeleton className='h-4 w-16' />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop table skeletons */}
+        <div className='hidden flex-1 rounded-md border lg:block'>
+          <div className='flex items-center border-b px-4 py-3'>
+            <Skeleton className='h-4 w-[40%]' />
+            <Skeleton className='ml-4 h-4 w-20' />
+            <Skeleton className='ml-4 h-4 w-32' />
+            <Skeleton className='ml-auto h-4 w-16' />
+          </div>
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className='flex items-center border-b px-4 py-3'>
+              <div className='flex w-[40%] flex-col gap-1'>
+                <Skeleton className='h-4 w-4/5' />
+                <Skeleton className='h-3 w-10' />
+              </div>
+              <Skeleton className='ml-4 h-5 w-20 rounded-full' />
+              <div className='ml-4 flex gap-1.5'>
+                <Skeleton className='h-6 w-6 rounded-full' />
+                <Skeleton className='h-4 w-16 self-center' />
+              </div>
+              <Skeleton className='ml-auto h-8 w-16' />
+            </div>
+          ))}
+        </div>
       </div>
     )
   }

@@ -25,30 +25,39 @@ function App() {
   }, [])
 
   return (
-    <div className='flex h-screen flex-col bg-background p-6'>
-      <header className='flex shrink-0 items-center justify-between'>
-        <div className='flex items-center gap-3'>
-          <div className='flex h-9 w-9 items-center justify-center rounded-lg bg-primary'>
-            <GitPullRequest className='h-5 w-5 text-primary-foreground' />
+    <div className='flex h-screen flex-col bg-background p-4 sm:p-6'>
+      <header className='flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
+        <div className='flex items-center justify-between'>
+          <div className='flex items-center gap-3'>
+            <div className='flex h-9 w-9 items-center justify-center rounded-lg bg-primary'>
+              <GitPullRequest className='h-5 w-5 text-primary-foreground' />
+            </div>
+            <div>
+              <h1 className='text-lg font-semibold tracking-tight'>
+                PR Reminder
+              </h1>
+              <p className='text-xs text-muted-foreground'>
+                Daycare repositories
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className='text-lg font-semibold tracking-tight'>
-              PR Reminder
-            </h1>
-            <p className='text-xs text-muted-foreground'>
-              Daycare repositories
-            </p>
+          <div className='sm:hidden'>
+            <SettingsDialog reviewers={reviewers} />
           </div>
         </div>
         <div className='flex items-center gap-2'>
-          <RepoSelector
-            value={selectedRepo}
-            onChange={(repo) => {
-              setSelectedRepo(repo)
-              localStorage.setItem('gh-reminder:selected-repo', repo)
-            }}
-          />
-          <SettingsDialog reviewers={reviewers} />
+          <div className='w-full sm:w-72'>
+            <RepoSelector
+              value={selectedRepo}
+              onChange={(repo) => {
+                setSelectedRepo(repo)
+                localStorage.setItem('gh-reminder:selected-repo', repo)
+              }}
+            />
+          </div>
+          <div className='hidden sm:block'>
+            <SettingsDialog reviewers={reviewers} />
+          </div>
         </div>
       </header>
 

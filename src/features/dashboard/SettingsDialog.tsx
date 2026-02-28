@@ -4,6 +4,7 @@ import { LogIn, RefreshCw, Save, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
   DialogContent,
@@ -48,21 +49,23 @@ export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   const [signedIn, setSignedIn] = useState(useIsSignedIn)
 
-  const { data: teams } = useQuery({
+  const [mappingsLoading, setMappingsLoading] = useState(false)
+
+  const { data: teams, isLoading: teamsLoading } = useQuery({
     queryKey: ['teams'],
     queryFn: fetchJoinedTeams,
     enabled: signedIn,
     staleTime: 10 * 60 * 1000,
   })
 
-  const { data: channels } = useQuery({
+  const { data: channels, isLoading: channelsLoading } = useQuery({
     queryKey: ['channels', selectedTeamId],
     queryFn: () => fetchChannels(selectedTeamId!),
     enabled: signedIn && !!selectedTeamId,
     staleTime: 10 * 60 * 1000,
   })
 
-  const { data: groupChats } = useQuery({
+  const { data: groupChats, isLoading: chatsLoading } = useQuery({
     queryKey: ['groupChats'],
     queryFn: fetchGroupChats,
     enabled: signedIn,
@@ -71,6 +74,7 @@ export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
 
   async function handleOpen(next: boolean) {
     if (next) {
+      setMappingsLoading(true)
       const saved = await fetchMappings()
       const initial: Record<string, string> = { ...saved }
       for (const r of reviewers) {
@@ -79,6 +83,7 @@ export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
         }
       }
       setDraft(initial)
+      setMappingsLoading(false)
 
       const teamsSettings = getTeamsSettings()
       setSendMode(teamsSettings.sendMode)
@@ -213,49 +218,57 @@ export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
                     <>
                       <div className='flex flex-col gap-1'>
                         <Label className='text-xs font-medium'>Team</Label>
-                        <Select
-                          value={selectedTeamId ?? undefined}
-                          onValueChange={handleTeamChange}
-                        >
-                          <SelectTrigger className='cursor-pointer'>
-                            <SelectValue placeholder='Select a team' />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {teams?.map((team) => (
-                              <SelectItem
-                                key={team.id}
-                                value={team.id}
-                                className='cursor-pointer'
-                              >
-                                {team.displayName}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        {teamsLoading ? (
+                          <Skeleton className='h-9 w-full rounded-md' />
+                        ) : (
+                          <Select
+                            value={selectedTeamId ?? undefined}
+                            onValueChange={handleTeamChange}
+                          >
+                            <SelectTrigger className='cursor-pointer'>
+                              <SelectValue placeholder='Select a team' />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {teams?.map((team) => (
+                                <SelectItem
+                                  key={team.id}
+                                  value={team.id}
+                                  className='cursor-pointer'
+                                >
+                                  {team.displayName}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
                       </div>
 
                       {selectedTeamId && (
                         <div className='flex flex-col gap-1'>
                           <Label className='text-xs font-medium'>Channel</Label>
-                          <Select
-                            value={selectedChannelId ?? undefined}
-                            onValueChange={handleChannelChange}
-                          >
-                            <SelectTrigger className='cursor-pointer'>
-                              <SelectValue placeholder='Select a channel' />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {channels?.map((channel) => (
-                                <SelectItem
-                                  key={channel.id}
-                                  value={channel.id}
-                                  className='cursor-pointer'
-                                >
-                                  {channel.displayName}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {channelsLoading ? (
+                            <Skeleton className='h-9 w-full rounded-md' />
+                          ) : (
+                            <Select
+                              value={selectedChannelId ?? undefined}
+                              onValueChange={handleChannelChange}
+                            >
+                              <SelectTrigger className='cursor-pointer'>
+                                <SelectValue placeholder='Select a channel' />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {channels?.map((channel) => (
+                                  <SelectItem
+                                    key={channel.id}
+                                    value={channel.id}
+                                    className='cursor-pointer'
+                                  >
+                                    {channel.displayName}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
                         </div>
                       )}
                     </>
@@ -264,25 +277,29 @@ export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
                   {sendMode === 'chat' && (
                     <div className='flex flex-col gap-1'>
                       <Label className='text-xs font-medium'>Group Chat</Label>
-                      <Select
-                        value={selectedChatId ?? undefined}
-                        onValueChange={handleChatChange}
-                      >
-                        <SelectTrigger className='cursor-pointer'>
-                          <SelectValue placeholder='Select a group chat' />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {groupChats?.map((chat) => (
-                            <SelectItem
-                              key={chat.id}
-                              value={chat.id}
-                              className='cursor-pointer'
-                            >
-                              {chat.topic || chat.members.join(', ') || 'Unnamed chat'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {chatsLoading ? (
+                        <Skeleton className='h-9 w-full rounded-md' />
+                      ) : (
+                        <Select
+                          value={selectedChatId ?? undefined}
+                          onValueChange={handleChatChange}
+                        >
+                          <SelectTrigger className='cursor-pointer'>
+                            <SelectValue placeholder='Select a group chat' />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {groupChats?.map((chat) => (
+                              <SelectItem
+                                key={chat.id}
+                                value={chat.id}
+                                className='cursor-pointer'
+                              >
+                                {chat.topic || chat.members.join(', ') || 'Unnamed chat'}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
                   )}
                 </div>
@@ -312,7 +329,19 @@ export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
                 Map GitHub usernames to Teams emails for @mentions.
               </p>
 
-              {Object.keys(draft).length === 0 ? (
+              {mappingsLoading ? (
+                <div className='flex flex-col gap-3'>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className='flex items-center gap-3'>
+                      <Skeleton className='h-8 w-8 shrink-0 rounded-full' />
+                      <div className='flex flex-1 flex-col gap-1'>
+                        <Skeleton className='h-3 w-20' />
+                        <Skeleton className='h-8 w-full rounded-md' />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : Object.keys(draft).length === 0 ? (
                 <p className='py-2 text-center text-sm text-muted-foreground'>
                   No reviewers found. Select a repository with open PRs first.
                 </p>

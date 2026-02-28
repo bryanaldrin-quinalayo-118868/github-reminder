@@ -18,6 +18,7 @@ export const graphScopes = [
   'Team.ReadBasic.All',
   'Channel.ReadBasic.All',
   'ChannelMessage.Send',
+  'User.ReadBasic.All',
 ];
 
 export const chatScopes = [

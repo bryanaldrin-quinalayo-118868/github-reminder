@@ -102,6 +102,7 @@ async function buildMentionPayload(
   prTitle: string,
   prUrl: string,
   reviewers: { email: string; displayName: string }[],
+  customMessage?: string,
 ) {
   const mentions: Mention[] = [];
   const mentionTags: string[] = [];
@@ -130,9 +131,10 @@ async function buildMentionPayload(
     mentionTags.push(`<at id="${i}">${reviewer.displayName}</at>`);
   }
 
+  const msg = customMessage || 'please review this PR.'
   const content = mentionTags.length > 0
-    ? `🔔 <strong>PR Review Needed</strong><br/><a href="${prUrl}">${prTitle}</a><br/><br/>${mentionTags.join(', ')} — please review this PR.`
-    : `🔔 <strong>PR Review Needed</strong><br/><a href="${prUrl}">${prTitle}</a>`;
+    ? `🔔 <strong>PR Review Needed</strong><br/><a href="${prUrl}">${prTitle}</a><br/><br/>${mentionTags.join(', ')} — ${msg}`
+    : `🔔 <strong>PR Review Needed</strong><br/><a href="${prUrl}">${prTitle}</a><br/><br/>${msg}`;
 
   return { content, mentions };
 }
@@ -143,8 +145,9 @@ export async function sendChannelMessage(
   prTitle: string,
   prUrl: string,
   reviewers: { email: string; displayName: string }[],
+  customMessage?: string,
 ): Promise<void> {
-  const { content, mentions } = await buildMentionPayload(prTitle, prUrl, reviewers);
+  const { content, mentions } = await buildMentionPayload(prTitle, prUrl, reviewers, customMessage);
 
   await graphFetch(`/teams/${teamId}/channels/${channelId}/messages`, {
     method: 'POST',
@@ -160,8 +163,9 @@ export async function sendChatMessage(
   prTitle: string,
   prUrl: string,
   reviewers: { email: string; displayName: string }[],
+  customMessage?: string,
 ): Promise<void> {
-  const { content, mentions } = await buildMentionPayload(prTitle, prUrl, reviewers);
+  const { content, mentions } = await buildMentionPayload(prTitle, prUrl, reviewers, customMessage);
 
   await graphFetch(`/chats/${chatId}/messages`, {
     method: 'POST',

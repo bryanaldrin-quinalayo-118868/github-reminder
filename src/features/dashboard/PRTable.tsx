@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
 import { Bell, ChevronDown, ExternalLink, X } from 'lucide-react'
-import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,87 +12,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { msalInstance } from '@/config/msal'
-import { getTeamsSettings } from '@/config/teams-settings'
-import { getTeamsEmail } from '@/config/user-mappings'
 import { getStateColor } from '@/services/ado'
-import { sendChannelMessage, sendChatMessage } from '@/services/graph'
 import usePullRequests from '@/hooks/usePullRequests'
+import NotifyDialog from '@/features/dashboard/NotifyDialog'
+import type { NotifyEntry } from '@/features/dashboard/NotifyDialog'
 import type { PullRequest, Reviewer } from '@/types/github'
 
 type PRTableProps = {
   repoName: string | null;
 };
-
-async function notifyReviewers(
-  reviewers: Reviewer[],
-  prTitle: string,
-  prUrl: string,
-): Promise<void> {
-  const mapped = reviewers.map((r) => ({
-    login: r.login,
-    email: getTeamsEmail(r.login),
-  }))
-
-  const withEmail = mapped.filter((m) => m.email)
-  const withoutEmail = mapped.filter((m) => !m.email)
-
-  if (withoutEmail.length > 0) {
-    toast.warning(
-      `No Teams email mapped for: ${withoutEmail.map((m) => m.login).join(', ')}`,
-    )
-  }
-
-  if (mapped.length === 0) {
-    toast.info('No reviewers to notify.')
-    return
-  }
-
-  if (withEmail.length === 0) return
-
-  const isSignedIn = msalInstance.getAllAccounts().length > 0
-  const settings = getTeamsSettings()
-
-  const isChannelReady = settings.sendMode === 'channel' && settings.teamId && settings.channelId
-  const isChatReady = settings.sendMode === 'chat' && settings.chatId
-
-  if (!isSignedIn || (!isChannelReady && !isChatReady)) {
-    toast.warning('Teams not configured. Go to Settings to sign in and select a destination.')
-    return
-  }
-
-  const reviewerPayload = withEmail.map((m) => ({ email: m.email!, displayName: m.login }))
-
-  try {
-    if (settings.sendMode === 'chat' && settings.chatId) {
-      await sendChatMessage(settings.chatId, prTitle, prUrl, reviewerPayload)
-    } else if (settings.teamId && settings.channelId) {
-      await sendChannelMessage(settings.teamId, settings.channelId, prTitle, prUrl, reviewerPayload)
-    }
-    toast.success(`Notified: ${withEmail.map((m) => m.login).join(', ')}`)
-  } catch (err) {
-    toast.error(`Failed to send Teams message: ${err instanceof Error ? err.message : 'Unknown error'}`)
-  }
-}
-
-async function notifyAllReviewers(prs: PullRequest[]): Promise<void> {
-  const isSignedIn = msalInstance.getAllAccounts().length > 0
-  const settings = getTeamsSettings()
-
-  const isChannelReady = settings.sendMode === 'channel' && settings.teamId && settings.channelId
-  const isChatReady = settings.sendMode === 'chat' && settings.chatId
-
-  if (!isSignedIn || (!isChannelReady && !isChatReady)) {
-    toast.warning('Teams not configured. Go to Settings to sign in and select a destination.')
-    return
-  }
-
-  for (const pr of prs) {
-    if (pr.pendingReviewers.length > 0) {
-      await notifyReviewers(pr.pendingReviewers, pr.title, pr.html_url)
-    }
-  }
-}
 
 function ReviewerBadge({ reviewer }: { reviewer: Reviewer }) {
   return (
@@ -184,6 +111,8 @@ function MultiSelect({ label, selected, options, onChange, renderOption, width =
 function PRDataTable({ prs }: { prs: PullRequest[] }) {
   const [adoFilters, setAdoFilters] = useState<Set<string>>(new Set())
   const [reviewerFilters, setReviewerFilters] = useState<Set<string>>(new Set())
+  const [notifyOpen, setNotifyOpen] = useState(false)
+  const [notifyEntries, setNotifyEntries] = useState<NotifyEntry[]>([])
 
   const filteredPrs = prs.filter((pr) => {
     if (adoFilters.size > 0 && !pr.adoWorkItems.some((wi) => adoFilters.has(wi.state))) return false
@@ -230,7 +159,15 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
           size='sm'
           variant='outline'
           className='cursor-pointer gap-1.5'
-          onClick={() => notifyAllReviewers(filteredPrs)}
+          onClick={() => {
+            const entries: NotifyEntry[] = filteredPrs
+              .filter((pr) => pr.pendingReviewers.length > 0)
+              .map((pr) => ({ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }))
+            if (entries.length > 0) {
+              setNotifyEntries(entries)
+              setNotifyOpen(true)
+            }
+          }}
         >
           <Bell className='h-3.5 w-3.5' />
           Notify All
@@ -302,7 +239,10 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
                       size='sm'
                       variant='ghost'
                       className='cursor-pointer gap-1.5'
-                      onClick={() => notifyReviewers(pr.pendingReviewers, pr.title, pr.html_url)}
+                      onClick={() => {
+                      setNotifyEntries([{ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }])
+                      setNotifyOpen(true)
+                    }}
                     >
                       <Bell className='h-3.5 w-3.5' />
                       Notify
@@ -320,6 +260,14 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
           </TableBody>
         </Table>
       </div>
+
+      {notifyOpen && (
+        <NotifyDialog
+          entries={notifyEntries}
+          open={notifyOpen}
+          onOpenChange={setNotifyOpen}
+        />
+      )}
     </div>
   )
 }

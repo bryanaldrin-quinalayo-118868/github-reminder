@@ -139,9 +139,10 @@ type MultiSelectProps = {
   onChange: (next: Set<string>) => void;
   renderOption?: (value: string) => React.ReactNode;
   width?: string;
+  disabled?: boolean;
 };
 
-function MultiSelect({ label, selected, options, onChange, renderOption, width = 'w-40' }: MultiSelectProps) {
+function MultiSelect({ label, selected, options, onChange, renderOption, width = 'w-40', disabled = false }: MultiSelectProps) {
   const detailsRef = useRef<HTMLDetailsElement>(null)
 
   function toggle(value: string) {
@@ -154,6 +155,17 @@ function MultiSelect({ label, selected, options, onChange, renderOption, width =
   function clear() {
     onChange(new Set())
     if (detailsRef.current) detailsRef.current.open = false
+  }
+
+  if (disabled) {
+    return (
+      <div
+        className={`flex h-8 ${width} items-center justify-between rounded-md border bg-muted/50 px-2 text-xs opacity-50 cursor-not-allowed`}
+      >
+        <span className='truncate text-muted-foreground'>{label}</span>
+        <ChevronDown className='h-3 w-3 shrink-0 text-muted-foreground' />
+      </div>
+    )
   }
 
   return (
@@ -243,6 +255,10 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
   const myPrsCount = currentUsername ? prs.filter((pr) => pr.user.login === currentUsername).length : 0
   const reviewRequestsCount = currentUsername ? prs.filter((pr) => pr.pendingReviewers.some((r) => r.login === currentUsername)).length : 0
 
+  // Contextually disable filters that are redundant for the active segment
+  const isOwnerDisabled = view === 'my-prs'
+  const isReviewerDisabled = view === 'review-requests'
+
   // Apply segment filter first, then user filters
   const viewPrs = (() => {
     switch (view) {
@@ -255,11 +271,18 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
 
   const filteredPrs = viewPrs.filter((pr) => {
     if (repoFilters.size > 0 && !repoFilters.has(pr.repoName)) return false
-    if (ownerFilters.size > 0 && !ownerFilters.has(pr.user.login)) return false
+    if (!isOwnerDisabled && ownerFilters.size > 0 && !ownerFilters.has(pr.user.login)) return false
     if (adoFilters.size > 0 && !pr.adoWorkItems.some((wi) => adoFilters.has(wi.state))) return false
-    if (reviewerFilters.size > 0 && !pr.pendingReviewers.some((r) => reviewerFilters.has(r.login))) return false
+    if (!isReviewerDisabled && reviewerFilters.size > 0 && !pr.pendingReviewers.some((r) => reviewerFilters.has(r.login))) return false
     return true
   })
+
+  const activeFilterCount =
+    (repoFilters.size > 0 ? 1 : 0) +
+    (!isOwnerDisabled && ownerFilters.size > 0 ? 1 : 0) +
+    (adoFilters.size > 0 ? 1 : 0) +
+    (!isReviewerDisabled && reviewerFilters.size > 0 ? 1 : 0) +
+    (idleSort !== 'none' ? 1 : 0)
 
   const sortedPrs = idleSort === 'none'
     ? filteredPrs
@@ -357,6 +380,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
           options={allOwners}
           onChange={setOwnerFilters}
           width='w-32 sm:w-40'
+          disabled={isOwnerDisabled}
         />
 
         <MultiSelect
@@ -377,7 +401,14 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
           options={allReviewerLogins}
           onChange={setReviewerFilters}
           width='w-32 sm:w-44'
+          disabled={isReviewerDisabled}
         />
+
+        {activeFilterCount > 0 && (
+          <Badge variant='outline' className='gap-1 text-xs'>
+            {activeFilterCount} {activeFilterCount === 1 ? 'filter' : 'filters'} active
+          </Badge>
+        )}
 
         <Button
           size='sm'

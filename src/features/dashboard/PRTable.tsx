@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, RefreshCw, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,6 +24,16 @@ import type { PullRequest, Reviewer } from '@/types/github'
 
 function daysAgo(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
+}
+
+function timeAgo(timestamp: number): string {
+  if (timestamp <= 0) return ''
+  const seconds = Math.floor((Date.now() - timestamp) / 1000)
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  return `${hours}h ago`
 }
 
 function StaleBadge({ updatedAt }: { updatedAt: string }) {
@@ -130,9 +140,12 @@ function MultiSelect({ label, selected, options, onChange, renderOption, width =
 // PRDataTable — manual filter/sort
 // ---------------------------------------------------------------------------
 
-function PRDataTable({ prs, loadingProgress }: {
+function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefresh }: {
   prs: PullRequest[];
   loadingProgress?: { loaded: number; total: number };
+  dataUpdatedAt: number;
+  isRefetching: boolean;
+  onRefresh: () => void;
 }) {
   const [repoFilters, setRepoFilters] = useState<Set<string>>(new Set())
   const [ownerFilters, setOwnerFilters] = useState<Set<string>>(new Set())
@@ -141,6 +154,13 @@ function PRDataTable({ prs, loadingProgress }: {
   const [idleSort, setIdleSort] = useState<'none' | 'asc' | 'desc'>('none')
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyEntries, setNotifyEntries] = useState<NotifyEntry[]>([])
+
+  // Tick every 30s so the "Updated X ago" label stays fresh
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 30_000)
+    return () => clearInterval(id)
+  }, [])
 
   const filteredPrs = prs.filter((pr) => {
     if (repoFilters.size > 0 && !repoFilters.has(pr.repoName)) return false
@@ -239,15 +259,31 @@ function PRDataTable({ prs, loadingProgress }: {
           {idleSort === 'asc' ? 'Most Idle' : idleSort === 'desc' ? 'Least Idle' : 'Idle Sort'}
         </Button>
 
-        <Button
-          size='sm'
-          variant='outline'
-          className='ml-auto cursor-pointer gap-1.5'
-          onClick={handleNotifyAll}
-        >
-          <Bell className='h-3.5 w-3.5' />
-          Notify All
-        </Button>
+        <div className='ml-auto flex items-center gap-2'>
+          {dataUpdatedAt > 0 && (
+            <span className='text-xs text-muted-foreground'>
+              Updated {timeAgo(dataUpdatedAt)}
+            </span>
+          )}
+          <Button
+            size='sm'
+            variant='ghost'
+            className='cursor-pointer gap-1.5'
+            onClick={onRefresh}
+            disabled={isRefetching}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button
+            size='sm'
+            variant='outline'
+            className='cursor-pointer gap-1.5'
+            onClick={handleNotifyAll}
+          >
+            <Bell className='h-3.5 w-3.5' />
+            Notify All
+          </Button>
+        </div>
       </div>
 
       {/* Mobile + Tablet card layout */}
@@ -493,7 +529,7 @@ function PRTableSkeleton() {
 // ---------------------------------------------------------------------------
 
 export default function PRTable() {
-  const { data: prs, isLoading, isError, loadedCount, totalCount } = usePullRequests()
+  const { data: prs, isLoading, isRefetching, isError, loadedCount, totalCount, dataUpdatedAt, refetchAll } = usePullRequests()
   const isStillLoading = isLoading && loadedCount < totalCount
 
   if (isLoading && (!prs || prs.length === 0)) {
@@ -520,6 +556,9 @@ export default function PRTable() {
     <PRDataTable
       prs={prs}
       loadingProgress={isStillLoading ? { loaded: loadedCount, total: totalCount } : undefined}
+      dataUpdatedAt={dataUpdatedAt}
+      isRefetching={isRefetching}
+      onRefresh={refetchAll}
     />
   )
 }

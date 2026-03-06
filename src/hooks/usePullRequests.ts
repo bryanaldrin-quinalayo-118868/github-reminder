@@ -6,8 +6,11 @@ export default function usePullRequests() {
   return {
     data: query.data.length > 0 ? query.data : undefined,
     isLoading: query.isLoading,
+    isRefetching: query.isRefetching,
     isError: query.isError,
     loadedCount: query.loadedCount,
     totalCount: query.totalCount,
+    dataUpdatedAt: query.dataUpdatedAt,
+    refetchAll: query.refetchAll,
   };
 }

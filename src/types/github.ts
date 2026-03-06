@@ -30,6 +30,7 @@ export type PullRequest = {
   title: string;
   html_url: string;
   body: string | null;
+  updated_at: string;
   user: Reviewer;
   requested_reviewers: Reviewer[];
   pendingReviewers: Reviewer[];

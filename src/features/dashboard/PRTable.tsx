@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Bell, ChevronDown, ExternalLink, X } from 'lucide-react'
+import { ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -21,6 +21,28 @@ import type { PullRequest, Reviewer } from '@/types/github'
 type PRTableProps = {
   repoName: string | null;
 };
+
+function daysAgo(dateStr: string): number {
+  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
+}
+
+function StaleBadge({ updatedAt }: { updatedAt: string }) {
+  const days = daysAgo(updatedAt)
+  if (days < 3) return null
+
+  const label = days === 1 ? '1 day' : `${days}d`
+  const color =
+    days >= 7
+      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+
+  return (
+    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${color}`}>
+      <Clock className='h-2.5 w-2.5' />
+      {label} idle
+    </span>
+  )
+}
 
 function ReviewerBadge({ reviewer }: { reviewer: Reviewer }) {
   return (
@@ -111,16 +133,24 @@ function MultiSelect({ label, selected, options, onChange, renderOption, width =
 function PRDataTable({ prs }: { prs: PullRequest[] }) {
   const [adoFilters, setAdoFilters] = useState<Set<string>>(new Set())
   const [reviewerFilters, setReviewerFilters] = useState<Set<string>>(new Set())
+  const [ownerFilters, setOwnerFilters] = useState<Set<string>>(new Set())
+  const [sortMostIdle, setSortMostIdle] = useState(false)
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyEntries, setNotifyEntries] = useState<NotifyEntry[]>([])
 
   const filteredPrs = prs.filter((pr) => {
+    if (ownerFilters.size > 0 && !ownerFilters.has(pr.user.login)) return false
     if (adoFilters.size > 0 && !pr.adoWorkItems.some((wi) => adoFilters.has(wi.state))) return false
     if (reviewerFilters.size > 0 && !pr.pendingReviewers.some((r) => reviewerFilters.has(r.login))) return false
     return true
   })
 
+  const sortedPrs = sortMostIdle
+    ? [...filteredPrs].sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime())
+    : filteredPrs
+
   // Collect unique ADO states and reviewers for filter dropdowns (from all PRs, not filtered)
+  const allOwners = [...new Set(prs.map((pr) => pr.user.login))].sort()
   const adoStates = [...new Set(prs.flatMap((pr) => pr.adoWorkItems.map((wi) => wi.state)))].sort()
   const allReviewerLogins = [...new Map(
     prs.flatMap((pr) => pr.pendingReviewers).map((r) => [r.login, r]),
@@ -132,6 +162,14 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
         <Badge variant='secondary' className='tabular-nums'>
           {filteredPrs.length} of {prs.length} open
         </Badge>
+
+        <MultiSelect
+          label='Owner'
+          selected={ownerFilters}
+          options={allOwners}
+          onChange={setOwnerFilters}
+          width='w-32 sm:w-40'
+        />
 
         <MultiSelect
           label='ADO State'
@@ -155,10 +193,20 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
 
         <Button
           size='sm'
+          variant={sortMostIdle ? 'secondary' : 'outline'}
+          className='cursor-pointer gap-1.5'
+          onClick={() => setSortMostIdle((v) => !v)}
+        >
+          <ArrowUpDown className='h-3.5 w-3.5' />
+          Most Idle
+        </Button>
+
+        <Button
+          size='sm'
           variant='outline'
           className='ml-auto cursor-pointer gap-1.5'
           onClick={() => {
-            const entries: NotifyEntry[] = filteredPrs
+            const entries: NotifyEntry[] = sortedPrs
               .filter((pr) => pr.pendingReviewers.length > 0)
               .map((pr) => ({ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }))
             if (entries.length > 0) {
@@ -174,9 +222,9 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
 
       {/* Mobile + Tablet card layout */}
       <div className='min-h-0 flex-1 overflow-auto lg:hidden'>
-        {filteredPrs.length > 0 ? (
+        {sortedPrs.length > 0 ? (
           <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
-            {filteredPrs.map((pr) => (
+            {sortedPrs.map((pr) => (
               <div key={pr.id} className='flex flex-col gap-2 rounded-lg border p-3'>
                 <div className='flex items-start justify-between gap-2'>
                   <div className='min-w-0 flex-1'>
@@ -189,7 +237,12 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
                       <span className='line-clamp-2'>{pr.title}</span>
                       <ExternalLink className='h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
                     </a>
-                    <span className='text-xs text-muted-foreground'>#{pr.number}</span>
+                    <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+                      <span>#{pr.number}</span>
+                      <span>·</span>
+                      <span>{pr.user.login}</span>
+                      <StaleBadge updatedAt={pr.updated_at} />
+                    </div>
                   </div>
                   <Button
                     size='sm'
@@ -252,8 +305,8 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredPrs.length > 0 ? (
-              filteredPrs.map((pr) => (
+            {sortedPrs.length > 0 ? (
+              sortedPrs.map((pr) => (
                 <TableRow key={pr.id}>
                   <TableCell>
                     <a
@@ -265,7 +318,12 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
                       <span className='line-clamp-1'>{pr.title}</span>
                       <ExternalLink className='h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
                     </a>
-                    <span className='text-xs text-muted-foreground'>#{pr.number}</span>
+                    <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+                      <span>#{pr.number}</span>
+                      <span>·</span>
+                      <span>{pr.user.login}</span>
+                      <StaleBadge updatedAt={pr.updated_at} />
+                    </div>
                   </TableCell>
                   <TableCell>
                     {pr.adoWorkItems.length > 0 ? (

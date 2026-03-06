@@ -1,9 +1,22 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { LogIn, RefreshCw, Save, Settings } from 'lucide-react'
+import { Check, ChevronsUpDown, LogIn, RefreshCw, Save, Settings, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
@@ -24,7 +37,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 import { msalInstance, graphScopes } from '@/config/msal'
+import { getGitHubUsername, setGitHubUsername } from '@/config/github-identity'
 import { getTeamsSettings, saveTeamsSettings } from '@/config/teams-settings'
 import type { SendMode } from '@/config/teams-settings'
 import { fetchMappings, saveMappings } from '@/config/user-mappings'
@@ -33,6 +48,8 @@ import type { Reviewer } from '@/types/github'
 
 type SettingsDialogProps = {
   reviewers: Reviewer[];
+  allUsernames: string[];
+  onUsernameChange?: (username: string | null) => void;
 };
 
 function useIsSignedIn() {
@@ -40,10 +57,12 @@ function useIsSignedIn() {
   return accounts.length > 0
 }
 
-export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
+export default function SettingsDialog({ reviewers, allUsernames, onUsernameChange }: SettingsDialogProps) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<Record<string, string>>({})
   const [sendMode, setSendMode] = useState<SendMode>('channel')
+  const [githubUsername, setGithubUsernameState] = useState<string | null>(getGitHubUsername)
+  const [usernamePopoverOpen, setUsernamePopoverOpen] = useState(false)
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
@@ -166,6 +185,71 @@ export default function SettingsDialog({ reviewers }: SettingsDialogProps) {
 
         <ScrollArea className='max-h-[60vh] pr-3'>
           <div className='flex flex-col gap-4'>
+            {/* GitHub Identity */}
+            <div className='flex flex-col gap-3'>
+              <h3 className='text-sm font-medium'>Your GitHub Account</h3>
+              <p className='text-xs text-muted-foreground'>
+                Select your GitHub username to enable "My PRs" and "Review Requests" filters.
+              </p>
+              <div className='flex items-center gap-2'>
+                <Popover open={usernamePopoverOpen} onOpenChange={setUsernamePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant='outline'
+                      role='combobox'
+                      aria-expanded={usernamePopoverOpen}
+                      className='flex-1 cursor-pointer justify-between'
+                    >
+                      {githubUsername ?? 'Select your username…'}
+                      <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className='w-[--radix-popover-trigger-width] p-0' align='start'>
+                    <Command>
+                      <CommandInput placeholder='Search username…' />
+                      <CommandList>
+                        <CommandEmpty>No username found.</CommandEmpty>
+                        <CommandGroup>
+                          {allUsernames.map((username) => (
+                            <CommandItem
+                              key={username}
+                              value={username}
+                              onSelect={(value) => {
+                                setGithubUsernameState(value)
+                                setGitHubUsername(value)
+                                onUsernameChange?.(value)
+                                setUsernamePopoverOpen(false)
+                              }}
+                              className='cursor-pointer'
+                            >
+                              <Check className={cn('mr-2 h-4 w-4', githubUsername === username ? 'opacity-100' : 'opacity-0')} />
+                              {username}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {githubUsername && (
+                  <Button
+                    size='icon'
+                    variant='ghost'
+                    className='h-9 w-9 shrink-0 cursor-pointer'
+                    onClick={() => {
+                      setGithubUsernameState(null)
+                      setGitHubUsername(null)
+                      onUsernameChange?.(null)
+                    }}
+                  >
+                    <X className='h-4 w-4' />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <Separator />
+
             {/* Teams Connection */}
             <div className='flex flex-col gap-3'>
               <h3 className='text-sm font-medium'>Teams Connection</h3>

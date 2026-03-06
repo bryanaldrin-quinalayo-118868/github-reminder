@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, RefreshCw, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, RefreshCw, Settings, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -140,14 +140,17 @@ function MultiSelect({ label, selected, options, onChange, renderOption, width =
 // PRDataTable — manual filter/sort
 // ---------------------------------------------------------------------------
 
-function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefresh }: {
+type ViewSegment = 'needs-review' | 'my-prs' | 'review-requests' | 'all';
+
+function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefresh, currentUsername }: {
   prs: PullRequest[];
   loadingProgress?: { loaded: number; total: number };
   dataUpdatedAt: number;
   isRefetching: boolean;
   onRefresh: () => void;
+  currentUsername: string | null;
 }) {
-  const [view, setView] = useState<'needs-review' | 'all'>('needs-review')
+  const [view, setView] = useState<ViewSegment>('needs-review')
   const [repoFilters, setRepoFilters] = useState<Set<string>>(new Set())
   const [ownerFilters, setOwnerFilters] = useState<Set<string>>(new Set())
   const [adoFilters, setAdoFilters] = useState<Set<string>>(new Set())
@@ -155,6 +158,18 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
   const [idleSort, setIdleSort] = useState<'none' | 'asc' | 'desc'>('none')
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyEntries, setNotifyEntries] = useState<NotifyEntry[]>([])
+  const [showIdentityPrompt, setShowIdentityPrompt] = useState(false)
+
+  const requiresUsername = (seg: ViewSegment) => seg === 'my-prs' || seg === 'review-requests'
+
+  function handleViewChange(seg: ViewSegment) {
+    if (requiresUsername(seg) && !currentUsername) {
+      setShowIdentityPrompt(true)
+      return
+    }
+    setShowIdentityPrompt(false)
+    setView(seg)
+  }
 
   // Tick every 30s so the "Updated X ago" label stays fresh
   const [, setTick] = useState(0)
@@ -165,11 +180,18 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
 
   // Segment counts (computed from all PRs, before other filters)
   const needsReviewCount = prs.filter((pr) => pr.pendingReviewers.length > 0).length
+  const myPrsCount = currentUsername ? prs.filter((pr) => pr.user.login === currentUsername).length : 0
+  const reviewRequestsCount = currentUsername ? prs.filter((pr) => pr.pendingReviewers.some((r) => r.login === currentUsername)).length : 0
 
   // Apply segment filter first, then user filters
-  const viewPrs = view === 'needs-review'
-    ? prs.filter((pr) => pr.pendingReviewers.length > 0)
-    : prs
+  const viewPrs = (() => {
+    switch (view) {
+      case 'needs-review': return prs.filter((pr) => pr.pendingReviewers.length > 0)
+      case 'my-prs': return currentUsername ? prs.filter((pr) => pr.user.login === currentUsername) : prs
+      case 'review-requests': return currentUsername ? prs.filter((pr) => pr.pendingReviewers.some((r) => r.login === currentUsername)) : prs
+      case 'all': return prs
+    }
+  })()
 
   const filteredPrs = viewPrs.filter((pr) => {
     if (repoFilters.size > 0 && !repoFilters.has(pr.repoName)) return false
@@ -213,46 +235,59 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
     <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
       {/* Segment tabs */}
       <div className='flex gap-1 rounded-lg bg-muted p-1 self-start'>
-        <button
-          type='button'
-          onClick={() => setView('needs-review')}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-            view === 'needs-review'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          Needs Review
-          <span className='ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary'>
-            {needsReviewCount}
-          </span>
-        </button>
-        <button
-          type='button'
-          onClick={() => setView('all')}
-          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-            view === 'all'
-              ? 'bg-background text-foreground shadow-sm'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          All PRs
-          <span className='ml-1.5 rounded-full bg-muted-foreground/10 px-1.5 py-0.5 text-[10px] font-semibold'>
-            {prs.length}
-          </span>
-        </button>
+        {([
+          { key: 'needs-review' as ViewSegment, label: 'Needs Review', count: needsReviewCount },
+          { key: 'my-prs' as ViewSegment, label: 'My PRs', count: currentUsername ? myPrsCount : null },
+          { key: 'review-requests' as ViewSegment, label: 'Review Requests', count: currentUsername ? reviewRequestsCount : null },
+          { key: 'all' as ViewSegment, label: 'All PRs', count: prs.length },
+        ]).map((seg) => (
+          <button
+            key={seg.key}
+            type='button'
+            onClick={() => handleViewChange(seg.key)}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              view === seg.key
+                ? 'bg-background text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {seg.label}
+            {seg.count != null && (
+              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                view === seg.key
+                  ? 'bg-primary/10 text-primary'
+                  : 'bg-muted-foreground/10'
+              }`}>
+                {seg.count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
+
+      {showIdentityPrompt && (
+        <div className='flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300'>
+          <Settings className='h-4 w-4 shrink-0' />
+          <span>
+            Set your GitHub username in <strong>Settings</strong> (gear icon, top-right) to use this filter.
+          </span>
+          <button
+            type='button'
+            onClick={() => setShowIdentityPrompt(false)}
+            className='ml-auto shrink-0 rounded p-0.5 hover:bg-amber-200/50 dark:hover:bg-amber-800/50'
+          >
+            <X className='h-3.5 w-3.5' />
+          </button>
+        </div>
+      )}
 
       {/* Toolbar */}
       <div className='flex flex-wrap items-center gap-2'>
-        <Badge variant='secondary' className='tabular-nums'>
-          {filteredPrs.length} of {prs.length} open
-          {loadingProgress && (
-            <span className='ml-1 text-muted-foreground'>
-              ({loadingProgress.loaded}/{loadingProgress.total} repos)
-            </span>
-          )}
-        </Badge>
+        {loadingProgress && (
+          <Badge variant='secondary' className='tabular-nums'>
+            {loadingProgress.loaded}/{loadingProgress.total} repos
+          </Badge>
+        )}
 
         <MultiSelect
           label='Repo'
@@ -569,7 +604,7 @@ function PRTableSkeleton() {
 // Entry point
 // ---------------------------------------------------------------------------
 
-export default function PRTable() {
+export default function PRTable({ currentUsername }: { currentUsername: string | null }) {
   const { data: prs, isLoading, isRefetching, isError, loadedCount, totalCount, dataUpdatedAt, refetchAll } = usePullRequests()
   const isStillLoading = isLoading && loadedCount < totalCount
 
@@ -600,6 +635,7 @@ export default function PRTable() {
       dataUpdatedAt={dataUpdatedAt}
       isRefetching={isRefetching}
       onRefresh={refetchAll}
+      currentUsername={currentUsername}
     />
   )
 }

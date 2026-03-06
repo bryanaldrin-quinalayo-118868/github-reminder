@@ -1,17 +1,28 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { GitPullRequest, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Separator } from '@/components/ui/separator'
+import { getGitHubUsername } from '@/config/github-identity'
 import { fetchMappings } from '@/config/user-mappings'
 import PRTable from '@/features/dashboard/PRTable'
 import SettingsDialog from '@/features/dashboard/SettingsDialog'
 import { Button } from '@/components/ui/button'
 import usePullRequests from '@/hooks/usePullRequests'
-import type { Reviewer } from '@/types/github'
+import type { PullRequest, Reviewer } from '@/types/github'
 
 function getUniqueReviewers(prs: { requested_reviewers: Reviewer[] }[]): Reviewer[] {
   const all = prs.flatMap((pr) => pr.requested_reviewers)
   return Array.from(new Map(all.map((r) => [r.id, r])).values())
+}
+
+function getAllUsernames(prs: PullRequest[]): string[] {
+  const set = new Set<string>()
+  for (const pr of prs) {
+    set.add(pr.user.login)
+    for (const r of pr.requested_reviewers) set.add(r.login)
+    for (const r of pr.pendingReviewers) set.add(r.login)
+  }
+  return [...set].sort((a, b) => a.localeCompare(b))
 }
 
 function ThemeToggle() {
@@ -33,6 +44,8 @@ function ThemeToggle() {
 function App() {
   const { data: prs } = usePullRequests()
   const reviewers = prs ? getUniqueReviewers(prs) : []
+  const allUsernames = prs ? getAllUsernames(prs) : []
+  const [currentUsername, setCurrentUsername] = useState<string | null>(getGitHubUsername)
 
   useEffect(() => {
     fetchMappings()
@@ -56,13 +69,17 @@ function App() {
         </div>
         <div className='flex items-center gap-1'>
           <ThemeToggle />
-          <SettingsDialog reviewers={reviewers} />
+          <SettingsDialog
+            reviewers={reviewers}
+            allUsernames={allUsernames}
+            onUsernameChange={setCurrentUsername}
+          />
         </div>
       </header>
 
       <Separator className='my-4 shrink-0' />
 
-      <PRTable />
+      <PRTable currentUsername={currentUsername} />
     </div>
   )
 }

@@ -1,16 +1,34 @@
 import { useEffect, useState } from 'react'
-import { GitPullRequest } from 'lucide-react'
+import { GitPullRequest, Moon, Sun } from 'lucide-react'
+import { useTheme } from 'next-themes'
 import { Separator } from '@/components/ui/separator'
 import { fetchMappings } from '@/config/user-mappings'
 import PRTable from '@/features/dashboard/PRTable'
 import RepoSelector from '@/features/dashboard/RepoSelector'
 import SettingsDialog from '@/features/dashboard/SettingsDialog'
+import { Button } from '@/components/ui/button'
 import usePullRequests from '@/hooks/usePullRequests'
 import type { Reviewer } from '@/types/github'
 
 function getUniqueReviewers(prs: { requested_reviewers: Reviewer[] }[]): Reviewer[] {
   const all = prs.flatMap((pr) => pr.requested_reviewers)
   return Array.from(new Map(all.map((r) => [r.id, r])).values())
+}
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme()
+
+  function cycle() {
+    setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light')
+  }
+
+  return (
+    <Button size='icon-sm' variant='ghost' className='cursor-pointer' onClick={cycle}>
+      <Sun className='h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0' />
+      <Moon className='absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100' />
+      <span className='sr-only'>Toggle theme</span>
+    </Button>
+  )
 }
 
 function App() {
@@ -41,7 +59,8 @@ function App() {
               </p>
             </div>
           </div>
-          <div className='sm:hidden'>
+          <div className='flex items-center gap-1 sm:hidden'>
+            <ThemeToggle />
             <SettingsDialog reviewers={reviewers} />
           </div>
         </div>
@@ -55,7 +74,8 @@ function App() {
               }}
             />
           </div>
-          <div className='hidden sm:block'>
+          <div className='hidden items-center gap-1 sm:flex'>
+            <ThemeToggle />
             <SettingsDialog reviewers={reviewers} />
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -134,7 +134,7 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
   const [adoFilters, setAdoFilters] = useState<Set<string>>(new Set())
   const [reviewerFilters, setReviewerFilters] = useState<Set<string>>(new Set())
   const [ownerFilters, setOwnerFilters] = useState<Set<string>>(new Set())
-  const [sortMostIdle, setSortMostIdle] = useState(false)
+  const [idleSort, setIdleSort] = useState<'none' | 'asc' | 'desc'>('none')
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyEntries, setNotifyEntries] = useState<NotifyEntry[]>([])
 
@@ -145,9 +145,12 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
     return true
   })
 
-  const sortedPrs = sortMostIdle
-    ? [...filteredPrs].sort((a, b) => new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime())
-    : filteredPrs
+  const sortedPrs = idleSort === 'none'
+    ? filteredPrs
+    : [...filteredPrs].sort((a, b) => {
+        const diff = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime()
+        return idleSort === 'asc' ? diff : -diff
+      })
 
   // Collect unique ADO states and reviewers for filter dropdowns (from all PRs, not filtered)
   const allOwners = [...new Set(prs.map((pr) => pr.user.login))].sort()
@@ -193,12 +196,12 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
 
         <Button
           size='sm'
-          variant={sortMostIdle ? 'secondary' : 'outline'}
+          variant={idleSort !== 'none' ? 'secondary' : 'outline'}
           className='cursor-pointer gap-1.5'
-          onClick={() => setSortMostIdle((v) => !v)}
+          onClick={() => setIdleSort((v) => v === 'none' ? 'asc' : v === 'asc' ? 'desc' : 'none')}
         >
-          <ArrowUpDown className='h-3.5 w-3.5' />
-          Most Idle
+          {idleSort === 'asc' ? <ArrowUp className='h-3.5 w-3.5' /> : idleSort === 'desc' ? <ArrowDown className='h-3.5 w-3.5' /> : <ArrowUpDown className='h-3.5 w-3.5' />}
+          {idleSort === 'asc' ? 'Most Idle' : idleSort === 'desc' ? 'Least Idle' : 'Idle Sort'}
         </Button>
 
         <Button

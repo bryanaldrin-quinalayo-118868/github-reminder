@@ -147,6 +147,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
   isRefetching: boolean;
   onRefresh: () => void;
 }) {
+  const [view, setView] = useState<'needs-review' | 'all'>('needs-review')
   const [repoFilters, setRepoFilters] = useState<Set<string>>(new Set())
   const [ownerFilters, setOwnerFilters] = useState<Set<string>>(new Set())
   const [adoFilters, setAdoFilters] = useState<Set<string>>(new Set())
@@ -162,7 +163,15 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
     return () => clearInterval(id)
   }, [])
 
-  const filteredPrs = prs.filter((pr) => {
+  // Segment counts (computed from all PRs, before other filters)
+  const needsReviewCount = prs.filter((pr) => pr.pendingReviewers.length > 0).length
+
+  // Apply segment filter first, then user filters
+  const viewPrs = view === 'needs-review'
+    ? prs.filter((pr) => pr.pendingReviewers.length > 0)
+    : prs
+
+  const filteredPrs = viewPrs.filter((pr) => {
     if (repoFilters.size > 0 && !repoFilters.has(pr.repoName)) return false
     if (ownerFilters.size > 0 && !ownerFilters.has(pr.user.login)) return false
     if (adoFilters.size > 0 && !pr.adoWorkItems.some((wi) => adoFilters.has(wi.state))) return false
@@ -202,6 +211,38 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
 
   return (
     <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
+      {/* Segment tabs */}
+      <div className='flex gap-1 rounded-lg bg-muted p-1 self-start'>
+        <button
+          type='button'
+          onClick={() => setView('needs-review')}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            view === 'needs-review'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          Needs Review
+          <span className='ml-1.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary'>
+            {needsReviewCount}
+          </span>
+        </button>
+        <button
+          type='button'
+          onClick={() => setView('all')}
+          className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            view === 'all'
+              ? 'bg-background text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          All PRs
+          <span className='ml-1.5 rounded-full bg-muted-foreground/10 px-1.5 py-0.5 text-[10px] font-semibold'>
+            {prs.length}
+          </span>
+        </button>
+      </div>
+
       {/* Toolbar */}
       <div className='flex flex-wrap items-center gap-2'>
         <Badge variant='secondary' className='tabular-nums'>

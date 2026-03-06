@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, RefreshCw, Settings, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, GitPullRequest, RefreshCw, Settings, Users, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -51,6 +51,66 @@ function StaleBadge({ updatedAt }: { updatedAt: string }) {
       <Clock className='h-2.5 w-2.5' />
       {label} idle
     </span>
+  )
+}
+
+function StatsBanner({ prs }: { prs: PullRequest[] }) {
+  const totalOpen = prs.length
+  const needsReview = prs.filter((pr) => pr.pendingReviewers.length > 0).length
+  const staleCount = prs.filter((pr) => daysAgo(pr.updated_at) >= 3).length
+  const criticalCount = prs.filter((pr) => daysAgo(pr.updated_at) >= 7).length
+
+  const idleDays = prs.map((pr) => daysAgo(pr.updated_at))
+  const avgIdle = totalOpen > 0 ? (idleDays.reduce((a, b) => a + b, 0) / totalOpen).toFixed(1) : '0'
+
+  const healthColor = criticalCount > 0
+    ? 'text-red-600 dark:text-red-400'
+    : staleCount > 0
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-emerald-600 dark:text-emerald-400'
+
+  return (
+    <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
+      <div className='flex items-center gap-2.5 rounded-lg border px-3 py-2'>
+        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10'>
+          <GitPullRequest className='h-4 w-4 text-primary' />
+        </div>
+        <div>
+          <p className='text-lg font-semibold leading-none'>{totalOpen}</p>
+          <p className='text-[11px] text-muted-foreground'>Open PRs</p>
+        </div>
+      </div>
+
+      <div className='flex items-center gap-2.5 rounded-lg border px-3 py-2'>
+        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-500/10'>
+          <Users className='h-4 w-4 text-blue-600 dark:text-blue-400' />
+        </div>
+        <div>
+          <p className='text-lg font-semibold leading-none'>{needsReview}</p>
+          <p className='text-[11px] text-muted-foreground'>Needs Review</p>
+        </div>
+      </div>
+
+      <div className='flex items-center gap-2.5 rounded-lg border px-3 py-2'>
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${criticalCount > 0 ? 'bg-red-500/10' : staleCount > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10'}`}>
+          <AlertTriangle className={`h-4 w-4 ${healthColor}`} />
+        </div>
+        <div>
+          <p className={`text-lg font-semibold leading-none ${healthColor}`}>{staleCount}</p>
+          <p className='text-[11px] text-muted-foreground'>Stale ({criticalCount} critical)</p>
+        </div>
+      </div>
+
+      <div className='flex items-center gap-2.5 rounded-lg border px-3 py-2'>
+        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted'>
+          <Clock className='h-4 w-4 text-muted-foreground' />
+        </div>
+        <div>
+          <p className='text-lg font-semibold leading-none'>{avgIdle}d</p>
+          <p className='text-[11px] text-muted-foreground'>Avg Idle Time</p>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -221,39 +281,33 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
     setNotifyOpen(true)
   }
 
-  function handleNotifyAll() {
-    const entries: NotifyEntry[] = sortedPrs
-      .filter((pr) => pr.pendingReviewers.length > 0)
-      .map((pr) => ({ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }))
-    if (entries.length > 0) {
-      setNotifyEntries(entries)
-      setNotifyOpen(true)
-    }
-  }
 
   return (
     <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
+      <StatsBanner prs={prs} />
+
       {/* Segment tabs */}
-      <div className='flex gap-1 rounded-lg bg-muted p-1 self-start'>
+      <div className='flex gap-1 overflow-x-auto rounded-lg bg-muted p-1 self-start max-w-full'>
         {([
-          { key: 'needs-review' as ViewSegment, label: 'Needs Review', count: needsReviewCount },
-          { key: 'my-prs' as ViewSegment, label: 'My PRs', count: currentUsername ? myPrsCount : null },
-          { key: 'review-requests' as ViewSegment, label: 'Review Requests', count: currentUsername ? reviewRequestsCount : null },
-          { key: 'all' as ViewSegment, label: 'All PRs', count: prs.length },
+          { key: 'needs-review' as ViewSegment, label: 'Needs Review', shortLabel: 'Review', count: needsReviewCount },
+          { key: 'my-prs' as ViewSegment, label: 'My PRs', shortLabel: 'Mine', count: currentUsername ? myPrsCount : null },
+          { key: 'review-requests' as ViewSegment, label: 'Review Requests', shortLabel: 'Requests', count: currentUsername ? reviewRequestsCount : null },
+          { key: 'all' as ViewSegment, label: 'All PRs', shortLabel: 'All', count: prs.length },
         ]).map((seg) => (
           <button
             key={seg.key}
             type='button'
             onClick={() => handleViewChange(seg.key)}
-            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`shrink-0 rounded-md px-2 py-1.5 text-xs font-medium transition-colors sm:px-3 ${
               view === seg.key
                 ? 'bg-background text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {seg.label}
+            <span className='sm:hidden'>{seg.shortLabel}</span>
+            <span className='hidden sm:inline'>{seg.label}</span>
             {seg.count != null && (
-              <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+              <span className={`ml-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:ml-1.5 ${
                 view === seg.key
                   ? 'bg-primary/10 text-primary'
                   : 'bg-muted-foreground/10'
@@ -349,15 +403,6 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
             disabled={isRefetching}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? 'animate-spin' : ''}`} />
-          </Button>
-          <Button
-            size='sm'
-            variant='outline'
-            className='cursor-pointer gap-1.5'
-            onClick={handleNotifyAll}
-          >
-            <Bell className='h-3.5 w-3.5' />
-            Notify All
           </Button>
         </div>
       </div>

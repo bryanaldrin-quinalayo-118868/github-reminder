@@ -122,7 +122,7 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
         .map((id) => adoMap.get(id))
         .filter((wi): wi is NonNullable<typeof wi> => !!wi);
 
-      return { ...pr, pendingReviewers, adoWorkItems };
+      return { ...pr, pendingReviewers, adoWorkItems, repoName };
     }),
   );
 

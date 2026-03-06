@@ -1,4 +1,4 @@
-import { GitBranch } from 'lucide-react'
+import { GitBranch, Layers } from 'lucide-react'
 import {
   Select,
   SelectContent,
@@ -46,6 +46,15 @@ export default function RepoSelector({ value, onChange }: RepoSelectorProps) {
         </div>
       </SelectTrigger>
       <SelectContent>
+        <SelectItem
+          value='__all__'
+          className='cursor-pointer'
+        >
+          <span className='flex items-center gap-1.5'>
+            <Layers className='h-3.5 w-3.5 text-muted-foreground' />
+            All Repos
+          </span>
+        </SelectItem>
         {repos?.map((repo) => (
           <SelectItem
             key={repo.id}

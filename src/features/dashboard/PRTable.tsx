@@ -18,9 +18,9 @@ import NotifyDialog from '@/features/dashboard/NotifyDialog'
 import type { NotifyEntry } from '@/features/dashboard/NotifyDialog'
 import type { PullRequest, Reviewer } from '@/types/github'
 
-type PRTableProps = {
-  repoName: string | null;
-};
+// ---------------------------------------------------------------------------
+// Helpers & sub-components
+// ---------------------------------------------------------------------------
 
 function daysAgo(dateStr: string): number {
   return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86_400_000)
@@ -48,20 +48,19 @@ function ReviewerBadge({ reviewer }: { reviewer: Reviewer }) {
   return (
     <div className='flex items-center gap-1.5'>
       <Avatar className='h-6 w-6'>
-        <AvatarImage
-          src={reviewer.avatar_url}
-          alt={reviewer.login}
-        />
+        <AvatarImage src={reviewer.avatar_url} alt={reviewer.login} />
         <AvatarFallback className='text-[10px]'>
           {reviewer.login.slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>
-      <span className='text-xs text-muted-foreground'>
-        {reviewer.login}
-      </span>
+      <span className='text-xs text-muted-foreground'>{reviewer.login}</span>
     </div>
   )
 }
+
+// ---------------------------------------------------------------------------
+// MultiSelect
+// ---------------------------------------------------------------------------
 
 type MultiSelectProps = {
   label: string;
@@ -77,11 +76,8 @@ function MultiSelect({ label, selected, options, onChange, renderOption, width =
 
   function toggle(value: string) {
     const next = new Set(selected)
-    if (next.has(value)) {
-      next.delete(value)
-    } else {
-      next.add(value)
-    }
+    if (next.has(value)) next.delete(value)
+    else next.add(value)
     onChange(next)
   }
 
@@ -130,15 +126,24 @@ function MultiSelect({ label, selected, options, onChange, renderOption, width =
   )
 }
 
-function PRDataTable({ prs }: { prs: PullRequest[] }) {
+// ---------------------------------------------------------------------------
+// PRDataTable — manual filter/sort
+// ---------------------------------------------------------------------------
+
+function PRDataTable({ prs, loadingProgress }: {
+  prs: PullRequest[];
+  loadingProgress?: { loaded: number; total: number };
+}) {
+  const [repoFilters, setRepoFilters] = useState<Set<string>>(new Set())
+  const [ownerFilters, setOwnerFilters] = useState<Set<string>>(new Set())
   const [adoFilters, setAdoFilters] = useState<Set<string>>(new Set())
   const [reviewerFilters, setReviewerFilters] = useState<Set<string>>(new Set())
-  const [ownerFilters, setOwnerFilters] = useState<Set<string>>(new Set())
   const [idleSort, setIdleSort] = useState<'none' | 'asc' | 'desc'>('none')
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyEntries, setNotifyEntries] = useState<NotifyEntry[]>([])
 
   const filteredPrs = prs.filter((pr) => {
+    if (repoFilters.size > 0 && !repoFilters.has(pr.repoName)) return false
     if (ownerFilters.size > 0 && !ownerFilters.has(pr.user.login)) return false
     if (adoFilters.size > 0 && !pr.adoWorkItems.some((wi) => adoFilters.has(wi.state))) return false
     if (reviewerFilters.size > 0 && !pr.pendingReviewers.some((r) => reviewerFilters.has(r.login))) return false
@@ -152,19 +157,49 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
         return idleSort === 'asc' ? diff : -diff
       })
 
-  // Collect unique ADO states and reviewers for filter dropdowns (from all PRs, not filtered)
+  // Collect unique values for filter dropdowns (from ALL data, not filtered)
+  const allRepos = [...new Set(prs.map((pr) => pr.repoName))].sort()
   const allOwners = [...new Set(prs.map((pr) => pr.user.login))].sort()
   const adoStates = [...new Set(prs.flatMap((pr) => pr.adoWorkItems.map((wi) => wi.state)))].sort()
   const allReviewerLogins = [...new Map(
     prs.flatMap((pr) => pr.pendingReviewers).map((r) => [r.login, r]),
   ).values()].sort((a, b) => a.login.localeCompare(b.login)).map((r) => r.login)
 
+  function handleNotifySingle(pr: PullRequest) {
+    setNotifyEntries([{ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }])
+    setNotifyOpen(true)
+  }
+
+  function handleNotifyAll() {
+    const entries: NotifyEntry[] = sortedPrs
+      .filter((pr) => pr.pendingReviewers.length > 0)
+      .map((pr) => ({ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }))
+    if (entries.length > 0) {
+      setNotifyEntries(entries)
+      setNotifyOpen(true)
+    }
+  }
+
   return (
     <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
+      {/* Toolbar */}
       <div className='flex flex-wrap items-center gap-2'>
         <Badge variant='secondary' className='tabular-nums'>
           {filteredPrs.length} of {prs.length} open
+          {loadingProgress && (
+            <span className='ml-1 text-muted-foreground'>
+              ({loadingProgress.loaded}/{loadingProgress.total} repos)
+            </span>
+          )}
         </Badge>
+
+        <MultiSelect
+          label='Repo'
+          selected={repoFilters}
+          options={allRepos}
+          onChange={setRepoFilters}
+          width='w-32 sm:w-44'
+        />
 
         <MultiSelect
           label='Owner'
@@ -208,15 +243,7 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
           size='sm'
           variant='outline'
           className='ml-auto cursor-pointer gap-1.5'
-          onClick={() => {
-            const entries: NotifyEntry[] = sortedPrs
-              .filter((pr) => pr.pendingReviewers.length > 0)
-              .map((pr) => ({ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }))
-            if (entries.length > 0) {
-              setNotifyEntries(entries)
-              setNotifyOpen(true)
-            }
-          }}
+          onClick={handleNotifyAll}
         >
           <Bell className='h-3.5 w-3.5' />
           Notify All
@@ -240,7 +267,10 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
                       <span className='line-clamp-2'>{pr.title}</span>
                       <ExternalLink className='h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
                     </a>
-                    <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+                    <div className='flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground'>
+                      <span className='rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium'>
+                        {pr.repoName}
+                      </span>
                       <span>#{pr.number}</span>
                       <span>·</span>
                       <span>{pr.user.login}</span>
@@ -251,10 +281,7 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
                     size='sm'
                     variant='ghost'
                     className='shrink-0 cursor-pointer gap-1'
-                    onClick={() => {
-                      setNotifyEntries([{ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }])
-                      setNotifyOpen(true)
-                    }}
+                    onClick={() => handleNotifySingle(pr)}
                   >
                     <Bell className='h-3.5 w-3.5' />
                   </Button>
@@ -322,6 +349,9 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
                       <ExternalLink className='h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100' />
                     </a>
                     <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+                      <span className='rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium'>
+                        {pr.repoName}
+                      </span>
                       <span>#{pr.number}</span>
                       <span>·</span>
                       <span>{pr.user.login}</span>
@@ -367,10 +397,7 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
                       size='sm'
                       variant='ghost'
                       className='cursor-pointer gap-1.5'
-                      onClick={() => {
-                        setNotifyEntries([{ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }])
-                        setNotifyOpen(true)
-                      }}
+                      onClick={() => handleNotifySingle(pr)}
                     >
                       <Bell className='h-3.5 w-3.5' />
                       Notify
@@ -400,78 +427,80 @@ function PRDataTable({ prs }: { prs: PullRequest[] }) {
   )
 }
 
-export default function PRTable({ repoName }: PRTableProps) {
-  const { data: prs, isLoading, isError } = usePullRequests(repoName)
+// ---------------------------------------------------------------------------
+// Skeleton
+// ---------------------------------------------------------------------------
 
-  if (!repoName) {
-    return (
-      <div className='flex flex-1 items-center justify-center text-muted-foreground'>
-        Select a repository to view open pull requests.
+function PRTableSkeleton() {
+  return (
+    <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
+      <div className='flex flex-wrap items-center gap-2'>
+        <Skeleton className='h-6 w-24' />
+        <Skeleton className='h-8 w-32 sm:w-40' />
+        <Skeleton className='h-8 w-32 sm:w-44' />
+        <Skeleton className='ml-auto h-8 w-24' />
       </div>
-    )
-  }
 
-  if (isLoading) {
-    return (
-      <div className='flex flex-1 flex-col gap-3 overflow-hidden'>
-        {/* Filter bar skeleton */}
-        <div className='flex flex-wrap items-center gap-2'>
-          <Skeleton className='h-6 w-24' />
-          <Skeleton className='h-8 w-32 sm:w-40' />
-          <Skeleton className='h-8 w-32 sm:w-44' />
-          <Skeleton className='ml-auto h-8 w-24' />
-        </div>
-
-        {/* Mobile + Tablet card skeletons */}
-        <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden'>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className='flex flex-col gap-2 rounded-lg border p-3'>
-              <div className='flex items-start justify-between gap-2'>
-                <div className='flex flex-1 flex-col gap-1'>
-                  <Skeleton className='h-4 w-3/4' />
-                  <Skeleton className='h-3 w-12' />
-                </div>
-                <Skeleton className='h-8 w-8 shrink-0' />
+      <div className='grid grid-cols-1 gap-3 sm:grid-cols-2 lg:hidden'>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className='flex flex-col gap-2 rounded-lg border p-3'>
+            <div className='flex items-start justify-between gap-2'>
+              <div className='flex flex-1 flex-col gap-1'>
+                <Skeleton className='h-4 w-3/4' />
+                <Skeleton className='h-3 w-12' />
               </div>
-              <div className='flex gap-1'>
-                <Skeleton className='h-5 w-20 rounded-full' />
-              </div>
-              <div className='flex gap-1.5'>
-                <Skeleton className='h-6 w-6 rounded-full' />
-                <Skeleton className='h-4 w-16' />
-              </div>
+              <Skeleton className='h-8 w-8 shrink-0' />
             </div>
-          ))}
-        </div>
-
-        {/* Desktop table skeletons */}
-        <div className='hidden flex-1 rounded-md border lg:block'>
-          <div className='flex items-center border-b px-4 py-3'>
-            <Skeleton className='h-4 w-[40%]' />
-            <Skeleton className='ml-4 h-4 w-20' />
-            <Skeleton className='ml-4 h-4 w-32' />
-            <Skeleton className='ml-auto h-4 w-16' />
+            <div className='flex gap-1'>
+              <Skeleton className='h-5 w-20 rounded-full' />
+            </div>
+            <div className='flex gap-1.5'>
+              <Skeleton className='h-6 w-6 rounded-full' />
+              <Skeleton className='h-4 w-16' />
+            </div>
           </div>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className='flex items-center border-b px-4 py-3'>
-              <div className='flex w-[40%] flex-col gap-1'>
-                <Skeleton className='h-4 w-4/5' />
-                <Skeleton className='h-3 w-10' />
-              </div>
-              <Skeleton className='ml-4 h-5 w-20 rounded-full' />
-              <div className='ml-4 flex gap-1.5'>
-                <Skeleton className='h-6 w-6 rounded-full' />
-                <Skeleton className='h-4 w-16 self-center' />
-              </div>
-              <Skeleton className='ml-auto h-8 w-16' />
-            </div>
-          ))}
-        </div>
+        ))}
       </div>
-    )
+
+      <div className='hidden flex-1 rounded-md border lg:block'>
+        <div className='flex items-center border-b px-4 py-3'>
+          <Skeleton className='h-4 w-[40%]' />
+          <Skeleton className='ml-4 h-4 w-20' />
+          <Skeleton className='ml-4 h-4 w-32' />
+          <Skeleton className='ml-auto h-4 w-16' />
+        </div>
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className='flex items-center border-b px-4 py-3'>
+            <div className='flex w-[40%] flex-col gap-1'>
+              <Skeleton className='h-4 w-4/5' />
+              <Skeleton className='h-3 w-10' />
+            </div>
+            <Skeleton className='ml-4 h-5 w-20 rounded-full' />
+            <div className='ml-4 flex gap-1.5'>
+              <Skeleton className='h-6 w-6 rounded-full' />
+              <Skeleton className='h-4 w-16 self-center' />
+            </div>
+            <Skeleton className='ml-auto h-8 w-16' />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Entry point
+// ---------------------------------------------------------------------------
+
+export default function PRTable() {
+  const { data: prs, isLoading, isError, loadedCount, totalCount } = usePullRequests()
+  const isStillLoading = isLoading && loadedCount < totalCount
+
+  if (isLoading && (!prs || prs.length === 0)) {
+    return <PRTableSkeleton />
   }
 
-  if (isError) {
+  if (isError && (!prs || prs.length === 0)) {
     return (
       <div className='flex flex-1 items-center justify-center text-destructive'>
         Failed to load pull requests.
@@ -487,5 +516,10 @@ export default function PRTable({ repoName }: PRTableProps) {
     )
   }
 
-  return <PRDataTable prs={prs} />
+  return (
+    <PRDataTable
+      prs={prs}
+      loadingProgress={isStillLoading ? { loaded: loadedCount, total: totalCount } : undefined}
+    />
+  )
 }

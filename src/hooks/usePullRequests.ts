@@ -1,11 +1,13 @@
-import { useQuery } from '@tanstack/react-query';
-import { fetchOpenPullRequests } from '@/services/github';
+import useAllPullRequests from '@/hooks/useAllPullRequests';
 
-export default function usePullRequests(repoName: string | null) {
-  return useQuery({
-    queryKey: ['pullRequests', repoName],
-    queryFn: () => fetchOpenPullRequests(repoName!),
-    enabled: !!repoName,
-    staleTime: 2 * 60 * 1000,
-  });
+export default function usePullRequests() {
+  const query = useAllPullRequests(true);
+
+  return {
+    data: query.data.length > 0 ? query.data : undefined,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    loadedCount: query.loadedCount,
+    totalCount: query.totalCount,
+  };
 }

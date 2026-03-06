@@ -35,6 +35,7 @@ export type PullRequest = {
   requested_reviewers: Reviewer[];
   pendingReviewers: Reviewer[];
   adoWorkItems: AdoWorkItem[];
+  repoName: string;
 };
 
 export type UserMapping = {

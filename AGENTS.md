@@ -272,6 +272,24 @@ These are areas to address as the app grows:
 
 ---
 
+## AI Workflow — Planning Mode for Big Changes
+
+When implementing significant features, refactors, or architectural changes, **always enter planning mode first**:
+
+1. **Analyze** the change and its impact on the codebase.
+2. **Propose at least 2 options**, each with clear **pros and cons**.
+3. **Wait for the user to pick** which option to proceed with before writing any code.
+
+A change is considered "big" if it:
+- Touches 3+ files or introduces a new pattern.
+- Changes data flow, state management, or API layer.
+- Adds a new dependency or architectural concept.
+- Could reasonably be implemented in more than one way.
+
+Small, obvious changes (bug fixes, styling tweaks, single-file edits) can proceed directly.
+
+---
+
 ## Contributing
 
 1. Run `npm install` to set up dependencies.

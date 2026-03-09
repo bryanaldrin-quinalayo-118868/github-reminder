@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import {
   Table,
   TableBody,
@@ -138,24 +139,31 @@ function ReviewerBadge({ reviewer }: { reviewer: PendingReviewer }) {
   const BadgeIcon = config.badge?.icon ?? null;
 
   return (
-    <div className='flex items-center gap-1.5 cursor-default' title={config.tooltip}>
-      <div className='relative'>
-        <Avatar className='h-6 w-6'>
-          <AvatarImage src={reviewer.avatar_url} alt={reviewer.login} />
-          <AvatarFallback className='text-[10px]'>
-            {reviewer.login.slice(0, 2).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        {BadgeIcon && (
-          <div className={`absolute -right-1 -bottom-1 flex h-3.5 w-3.5 items-center justify-center rounded-full ${config.badge!.bg} ring-1 ring-background`}>
-            <BadgeIcon className='h-2 w-2 text-white' />
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className='flex items-center gap-1.5 cursor-default'>
+          <div className='relative'>
+            <Avatar className='h-6 w-6'>
+              <AvatarImage src={reviewer.avatar_url} alt={reviewer.login} />
+              <AvatarFallback className='text-[10px]'>
+                {reviewer.login.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {BadgeIcon && (
+              <div className={`absolute -right-1 -bottom-1 flex h-3.5 w-3.5 items-center justify-center rounded-full ${config.badge!.bg} ring-1 ring-background`}>
+                <BadgeIcon className='h-2 w-2 text-white' />
+              </div>
+            )}
           </div>
-        )}
-      </div>
-      <span className={`text-xs ${config.text}`}>
-        {reviewer.login}
-      </span>
-    </div>
+          <span className={`text-xs ${config.text}`}>
+            {reviewer.login}
+          </span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side='top' className='text-xs'>
+        {config.tooltip}
+      </TooltipContent>
+    </Tooltip>
   )
 }
 

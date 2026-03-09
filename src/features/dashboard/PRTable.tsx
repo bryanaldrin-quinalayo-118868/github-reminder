@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, CircleCheck, Clock, ExternalLink, GitPullRequest, MessageSquare, RefreshCw, Settings, ShieldAlert, Users, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, GitPullRequest, MessageSquare, RefreshCw, Settings, ShieldAlert, Users, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -120,12 +120,7 @@ const statusConfig = {
   'commented': {
     badge: { bg: 'bg-blue-500', icon: MessageSquare },
     text: 'text-blue-600 dark:text-blue-400',
-    tooltip: 'Commented — has unresolved threads',
-  },
-  'commented-resolved': {
-    badge: { bg: 'bg-emerald-500', icon: CircleCheck },
-    text: 'text-emerald-600 dark:text-emerald-400',
-    tooltip: 'Commented — all threads resolved',
+    tooltip: 'Commented — not yet approved',
   },
   'changes-requested': {
     badge: { bg: 'bg-red-500', icon: ShieldAlert },

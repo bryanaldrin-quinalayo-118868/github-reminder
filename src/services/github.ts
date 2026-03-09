@@ -104,6 +104,78 @@ async function fetchPRMergeableState(repoName: string, prNumber: number, retries
 }
 
 // ---------------------------------------------------------------------------
+// GraphQL — review thread resolution (REST has no equivalent)
+// ---------------------------------------------------------------------------
+
+type ReviewThread = {
+  authorLogin: string;
+  isResolved: boolean;
+};
+
+const REVIEW_THREADS_QUERY = `
+  query($owner: String!, $name: String!, $number: Int!) {
+    repository(owner: $owner, name: $name) {
+      pullRequest(number: $number) {
+        reviewThreads(first: 100) {
+          nodes {
+            isResolved
+            comments(first: 1) {
+              nodes {
+                author { login }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+async function fetchPRReviewThreads(repoName: string, prNumber: number): Promise<ReviewThread[]> {
+  const token = getStoredToken() ?? (import.meta.env.VITE_GITHUB_TOKEN as string);
+
+  try {
+    const res = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        query: REVIEW_THREADS_QUERY,
+        variables: { owner: ORG, name: repoName, number: prNumber },
+      }),
+    });
+
+    if (!res.ok) return [];
+
+    const json = await res.json();
+    const nodes: { isResolved: boolean; comments: { nodes: { author: { login: string } }[] } }[] =
+      json?.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
+
+    return nodes.map((t) => ({
+      authorLogin: t.comments?.nodes?.[0]?.author?.login ?? '',
+      isResolved: t.isResolved,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function buildUnresolvedMap(threads: ReviewThread[]): Map<string, boolean> {
+  const map = new Map<string, boolean>();
+  for (const t of threads) {
+    const author = t.authorLogin.toLowerCase();
+    if (!t.isResolved) {
+      map.set(author, true);
+    } else if (!map.has(author)) {
+      map.set(author, false);
+    }
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -117,9 +189,10 @@ function parseAdoIds(body: string | null): number[] {
   return [...ids];
 }
 
-function resolveReviewStatus(latestState: string): ReviewStatus {
+function resolveReviewStatus(latestState: string, hasUnresolved: boolean): ReviewStatus {
+  if (latestState === 'APPROVED') return hasUnresolved ? 'approved-unresolved' : 'approved';
   if (latestState === 'CHANGES_REQUESTED') return 'changes-requested';
-  if (latestState === 'COMMENTED') return 'commented';
+  if (latestState === 'COMMENTED') return hasUnresolved ? 'commented-unresolved' : 'commented';
   return 'pending';
 }
 
@@ -164,10 +237,13 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
 
   const prs = await Promise.all(
     rawPrs.map(async (pr, i) => {
-      const [reviews, mergeableState] = await Promise.all([
+      const [reviews, mergeableState, threads] = await Promise.all([
         fetchPRReviews(repoName, pr.number),
         fetchPRMergeableState(repoName, pr.number),
+        fetchPRReviewThreads(repoName, pr.number),
       ]);
+
+      const unresolvedMap = buildUnresolvedMap(threads);
 
       // Get the latest review state per user
       const latestByUser = new Map<number, Review>();
@@ -176,23 +252,28 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
         latestByUser.set(review.user.id, review);
       }
 
-      // Only APPROVED removes a reviewer from the pending list
-      const approvedUserIds = new Set(
+      // Approved users with NO unresolved threads are fully done.
+      // Approved users WITH unresolved threads stay visible.
+      const approvedCleanIds = new Set(
         [...latestByUser.values()]
-          .filter((r) => r.state === 'APPROVED')
+          .filter((r) => {
+            if (r.state !== 'APPROVED') return false;
+            const hasUnresolved = unresolvedMap.get(r.user.login.toLowerCase()) ?? false;
+            return !hasUnresolved;
+          })
           .map((r) => r.user.id),
       );
 
-      // Reviewers who commented or requested changes but haven't approved.
+      // Reviewers who submitted any review (commented, changes requested, or approved-with-unresolved).
       // GitHub removes them from requested_reviewers once they submit ANY review,
       // so we must re-add them from the reviews data.
       const activeReviews = [...latestByUser.values()]
-        .filter((r) => (r.state === 'COMMENTED' || r.state === 'CHANGES_REQUESTED') && !approvedUserIds.has(r.user.id));
+        .filter((r) => !approvedCleanIds.has(r.user.id));
 
       // Start with requested_reviewers (people who haven't acted yet)
       const requestedMap = new Map(pr.requested_reviewers.map((r) => [r.id, r]));
 
-      // Add commenters/change-requesters who are no longer in requested_reviewers
+      // Add reviewers who are no longer in requested_reviewers but still have work to address
       for (const review of activeReviews) {
         if (!requestedMap.has(review.user.id)) {
           requestedMap.set(review.user.id, review.user);
@@ -200,13 +281,14 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
       }
 
       const pendingReviewers = [...requestedMap.values()]
-        .filter((reviewer) => !approvedUserIds.has(reviewer.id))
+        .filter((reviewer) => !approvedCleanIds.has(reviewer.id))
         .map((reviewer) => {
           const latest = latestByUser.get(reviewer.id);
+          const hasUnresolved = unresolvedMap.get(reviewer.login.toLowerCase()) ?? false;
           return {
             ...reviewer,
             reviewStatus: latest
-              ? resolveReviewStatus(latest.state)
+              ? resolveReviewStatus(latest.state, hasUnresolved)
               : 'pending' as ReviewStatus,
           };
         });

@@ -136,19 +136,37 @@ function MergeStatusBadge({ state }: { state: string }) {
   )
 }
 
-const statusConfig = {
+const statusConfig: Record<
+  import('@/types/github').ReviewStatus,
+  { badge: { bg: string; icon: typeof MessageSquare } | null; text: string; tooltip: string }
+> = {
   'pending': { badge: null, text: 'text-muted-foreground', tooltip: 'Pending review' },
   'commented': {
     badge: { bg: 'bg-blue-500', icon: MessageSquare },
     text: 'text-blue-600 dark:text-blue-400',
-    tooltip: 'Commented — not yet approved',
+    tooltip: 'Commented — no unresolved threads',
+  },
+  'commented-unresolved': {
+    badge: { bg: 'bg-amber-500', icon: MessageSquare },
+    text: 'text-amber-600 dark:text-amber-400',
+    tooltip: 'Commented — has unresolved threads',
   },
   'changes-requested': {
     badge: { bg: 'bg-red-500', icon: ShieldAlert },
     text: 'text-red-600 dark:text-red-400',
     tooltip: 'Requested changes',
   },
-} as const;
+  'approved': {
+    badge: { bg: 'bg-green-500', icon: CircleCheck },
+    text: 'text-green-600 dark:text-green-400',
+    tooltip: 'Approved',
+  },
+  'approved-unresolved': {
+    badge: { bg: 'bg-amber-500', icon: CircleCheck },
+    text: 'text-amber-600 dark:text-amber-400',
+    tooltip: 'Approved — has unresolved threads',
+  },
+};
 
 function ReviewerBadge({ reviewer }: { reviewer: PendingReviewer }) {
   const config = statusConfig[reviewer.reviewStatus];

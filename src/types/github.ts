@@ -12,7 +12,13 @@ export type Reviewer = {
   html_url: string;
 };
 
-export type ReviewStatus = 'pending' | 'commented' | 'changes-requested';
+export type ReviewStatus =
+  | 'pending'
+  | 'commented'
+  | 'commented-unresolved'
+  | 'changes-requested'
+  | 'approved'
+  | 'approved-unresolved';
 
 export type PendingReviewer = Reviewer & {
   reviewStatus: ReviewStatus;

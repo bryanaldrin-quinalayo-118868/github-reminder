@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import type { Repo, PullRequest, Reviewer, ReviewStatus } from '@/types/github';
 import { fetchWorkItemStates } from '@/services/ado';
 
@@ -19,6 +20,19 @@ function getHeaders(): HeadersInit {
   };
 }
 
+let rateLimitToastShown = false;
+
+function checkRateLimit(res: Response): void {
+  if ((res.status === 403 || res.status === 429) && !rateLimitToastShown) {
+    const reset = res.headers.get('x-ratelimit-reset');
+    const remaining = res.headers.get('x-ratelimit-remaining');
+    const resetTime = reset ? new Date(Number(reset) * 1000).toLocaleTimeString() : 'soon';
+    toast.error(`GitHub API rate limit hit (${remaining ?? 0} remaining). Resets at ${resetTime}.`, { duration: 10000 });
+    rateLimitToastShown = true;
+    setTimeout(() => { rateLimitToastShown = false; }, 60000);
+  }
+}
+
 export async function fetchDaycareRepos(): Promise<Repo[]> {
   const repos: Repo[] = [];
   let page = 1;
@@ -30,6 +44,7 @@ export async function fetchDaycareRepos(): Promise<Repo[]> {
       { headers: getHeaders() },
     );
 
+    checkRateLimit(res);
     if (!res.ok) {
       throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
     }
@@ -55,11 +70,36 @@ async function fetchPRReviews(repoName: string, prNumber: number): Promise<Revie
     { headers: getHeaders() },
   );
 
+  checkRateLimit(res);
   if (!res.ok) {
     throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
   }
 
   return res.json();
+}
+
+async function fetchPRMergeableState(repoName: string, prNumber: number, retries = 1): Promise<PullRequest['mergeableState']> {
+  const res = await fetch(
+    `${GITHUB_API}/repos/${ORG}/${repoName}/pulls/${prNumber}`,
+    { headers: getHeaders() },
+  );
+
+  checkRateLimit(res);
+  if (!res.ok) return 'unknown';
+
+  const data: { mergeable_state?: string; mergeable?: boolean | null; draft?: boolean } = await res.json();
+  if (data.draft) return 'draft';
+  const state = data.mergeable_state;
+  if (state === 'clean' || state === 'blocked' || state === 'behind' || state === 'dirty' || state === 'unstable') {
+    return state;
+  }
+
+  // GitHub returns "unknown" while computing mergeability — retry after a short delay
+  if (retries > 0 && (state === 'unknown' || data.mergeable === null)) {
+    await new Promise((r) => setTimeout(r, 1500));
+    return fetchPRMergeableState(repoName, prNumber, retries - 1);
+  }
+  return 'unknown';
 }
 
 // ---------------------------------------------------------------------------
@@ -97,6 +137,7 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
       { headers: getHeaders() },
     );
 
+    checkRateLimit(res);
     if (!res.ok) {
       throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
     }
@@ -122,7 +163,10 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
 
   const prs = await Promise.all(
     rawPrs.map(async (pr, i) => {
-      const reviews = await fetchPRReviews(repoName, pr.number);
+      const [reviews, mergeableState] = await Promise.all([
+        fetchPRReviews(repoName, pr.number),
+        fetchPRMergeableState(repoName, pr.number),
+      ]);
 
       // Get the latest review state per user
       const latestByUser = new Map<number, Review>();
@@ -170,7 +214,7 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
         .map((id) => adoMap.get(id))
         .filter((wi): wi is NonNullable<typeof wi> => !!wi);
 
-      return { ...pr, pendingReviewers, adoWorkItems, repoName };
+      return { ...pr, pendingReviewers, adoWorkItems, repoName, mergeableState };
     }),
   );
 

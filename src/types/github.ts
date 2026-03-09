@@ -37,6 +37,7 @@ export type PullRequest = {
   pendingReviewers: PendingReviewer[];
   adoWorkItems: AdoWorkItem[];
   repoName: string;
+  mergeableState: 'clean' | 'blocked' | 'behind' | 'dirty' | 'unstable' | 'draft' | 'unknown';
 };
 
 export type UserMapping = {

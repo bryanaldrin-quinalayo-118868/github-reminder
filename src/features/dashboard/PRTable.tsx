@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, CircleCheck, Clock, ExternalLink, GitPullRequest, MessageSquare, RefreshCw, Settings, ShieldAlert, Users, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Ban, Bell, ChevronDown, CircleCheck, Clock, ExternalLink, GitMerge, GitPullRequest, Loader2, MessageSquare, RefreshCw, Settings, ShieldAlert, TriangleAlert, Users, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -112,6 +112,27 @@ function StatsBanner({ prs }: { prs: PullRequest[] }) {
         </div>
       </div>
     </div>
+  )
+}
+
+const mergeStateConfig: Record<string, { icon: typeof CircleCheck; label: string; className: string }> = {
+  clean: { icon: GitMerge, label: 'Ready', className: 'bg-green-500/15 text-green-600 dark:text-green-400' },
+  blocked: { icon: Ban, label: 'Blocked', className: 'bg-red-500/15 text-red-600 dark:text-red-400' },
+  behind: { icon: TriangleAlert, label: 'Behind', className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
+  dirty: { icon: TriangleAlert, label: 'Conflicts', className: 'bg-red-500/15 text-red-600 dark:text-red-400' },
+  unstable: { icon: TriangleAlert, label: 'Unstable', className: 'bg-amber-500/15 text-amber-600 dark:text-amber-400' },
+  draft: { icon: Clock, label: 'Draft', className: 'bg-muted text-muted-foreground' },
+  unknown: { icon: Loader2, label: 'Pending', className: 'bg-muted text-muted-foreground' },
+}
+
+function MergeStatusBadge({ state }: { state: string }) {
+  const config = mergeStateConfig[state] ?? mergeStateConfig.unknown
+  const Icon = config.icon
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${config.className}`}>
+      <Icon className={`h-3 w-3 ${state === 'unknown' ? 'animate-spin' : ''}`} />
+      {config.label}
+    </span>
   )
 }
 
@@ -522,24 +543,23 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
                   </Button>
                 </div>
 
-                {pr.adoWorkItems.length > 0 && (
-                  <div className='flex flex-wrap gap-1'>
-                    {pr.adoWorkItems.map((wi) => {
-                      const color = getStateColor(wi.state)
-                      return (
-                        <a
-                          key={wi.id}
-                          href={wi.url}
-                          target='_blank'
-                          rel='noopener noreferrer'
-                          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${color.bg} ${color.text} hover:opacity-80 transition-opacity`}
-                        >
-                          #{wi.id} · {wi.state}{wi.sprint ? ` · ${wi.sprint}` : ''}
-                        </a>
-                      )
-                    })}
-                  </div>
-                )}
+                <div className='flex flex-wrap items-center gap-1.5'>
+                  <MergeStatusBadge state={pr.mergeableState} />
+                  {pr.adoWorkItems.map((wi) => {
+                    const color = getStateColor(wi.state)
+                    return (
+                      <a
+                        key={wi.id}
+                        href={wi.url}
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${color.bg} ${color.text} hover:opacity-80 transition-opacity`}
+                      >
+                        #{wi.id} · {wi.state}{wi.sprint ? ` · ${wi.sprint}` : ''}
+                      </a>
+                    )
+                  })}
+                </div>
 
                 {pr.pendingReviewers.length > 0 ? (
                   <div className='flex flex-wrap gap-1.5'>
@@ -571,6 +591,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
               <TableHead className='w-[40%]'>PR Title</TableHead>
               <TableHead>Work Item</TableHead>
               <TableHead>Pending Reviewers</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead className='w-24 text-right'>Action</TableHead>
             </TableRow>
           </TableHeader>
@@ -635,6 +656,9 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
                       </span>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <MergeStatusBadge state={pr.mergeableState} />
+                  </TableCell>
                   <TableCell className='text-right'>
                     <Button
                       size='sm'
@@ -650,7 +674,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={4} className='h-24 text-center text-muted-foreground'>
+                <TableCell colSpan={5} className='h-24 text-center text-muted-foreground'>
                   No results match the current filters.
                 </TableCell>
               </TableRow>
@@ -735,7 +759,7 @@ function PRTableSkeleton() {
 // Entry point
 // ---------------------------------------------------------------------------
 
-export default function PRTable({ currentUsername }: { currentUsername: string | null }) {
+export default function PRTable({ currentUsername, resetKey }: { currentUsername: string | null; resetKey: number }) {
   const { data: prs, isLoading, isRefetching, isError, loadedCount, totalCount, dataUpdatedAt, refetchAll } = usePullRequests()
   const isStillLoading = isLoading && loadedCount < totalCount
 
@@ -761,6 +785,7 @@ export default function PRTable({ currentUsername }: { currentUsername: string |
 
   return (
     <PRDataTable
+      key={resetKey}
       prs={prs}
       loadingProgress={isStillLoading ? { loaded: loadedCount, total: totalCount } : undefined}
       dataUpdatedAt={dataUpdatedAt}

@@ -3,7 +3,7 @@ import { fetchOpenPullRequests } from '@/services/github'
 import useRepos from '@/hooks/useRepos'
 import type { PullRequest } from '@/types/github'
 
-const REFETCH_INTERVAL = 5 * 60 * 1000 // 5 minutes
+const REFETCH_INTERVAL = 10 * 60 * 1000 // 10 minutes
 
 export default function useAllPullRequests(enabled: boolean) {
   const { data: repos, isLoading: reposLoading } = useRepos()

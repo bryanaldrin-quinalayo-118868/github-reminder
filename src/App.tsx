@@ -46,6 +46,7 @@ function App() {
   const reviewers = prs ? getUniqueReviewers(prs) : []
   const allUsernames = prs ? getAllUsernames(prs) : []
   const [currentUsername, setCurrentUsername] = useState<string | null>(getGitHubUsername)
+  const [resetKey, setResetKey] = useState(0)
 
   useEffect(() => {
     fetchMappings()
@@ -54,11 +55,16 @@ function App() {
   return (
     <div className='flex h-screen flex-col bg-background p-4 sm:p-6'>
       <header className='flex shrink-0 items-center justify-between'>
-        <div className='flex items-center gap-3'>
+        <button
+          type='button'
+          className='flex cursor-pointer items-center gap-3 rounded-lg px-1 py-0.5 transition-colors hover:bg-muted/50'
+          onClick={() => setResetKey((k) => k + 1)}
+          title='Reset all filters & sorts'
+        >
           <div className='flex h-9 w-9 items-center justify-center rounded-lg bg-primary'>
             <GitPullRequest className='h-5 w-5 text-primary-foreground' />
           </div>
-          <div>
+          <div className='text-left'>
             <h1 className='text-lg font-semibold tracking-tight'>
               PR Reminder
             </h1>
@@ -66,7 +72,7 @@ function App() {
               Daycare repositories
             </p>
           </div>
-        </div>
+        </button>
         <div className='flex items-center gap-1'>
           <ThemeToggle />
           <SettingsDialog
@@ -79,7 +85,7 @@ function App() {
 
       <Separator className='my-4 shrink-0' />
 
-      <PRTable currentUsername={currentUsername} />
+      <PRTable currentUsername={currentUsername} resetKey={resetKey} />
     </div>
   )
 }

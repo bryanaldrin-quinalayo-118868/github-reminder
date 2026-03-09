@@ -1,31 +1,18 @@
 import { useEffect, useState } from 'react'
-import { GitPullRequest, Heart, Moon, Sun } from 'lucide-react'
+import { GitPullRequest, Heart, LogOut, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
-import { getGitHubUsername } from '@/config/github-identity'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { fetchMappings } from '@/config/user-mappings'
+import LoginPage from '@/features/auth/LoginPage'
 import PRTable from '@/features/dashboard/PRTable'
 import NotificationsDialog from '@/features/dashboard/NotificationsDialog'
 import SettingsDialog from '@/features/dashboard/SettingsDialog'
 import { Button } from '@/components/ui/button'
+import { getStoredToken, getStoredUser, clearAuth } from '@/services/github-auth'
 import usePullRequests from '@/hooks/usePullRequests'
-import type { PullRequest, Reviewer } from '@/types/github'
 
-function getUniqueReviewers(prs: { requested_reviewers: Reviewer[] }[]): Reviewer[] {
-  const all = prs.flatMap((pr) => pr.requested_reviewers)
-  return Array.from(new Map(all.map((r) => [r.id, r])).values())
-}
-
-function getAllUsernames(prs: PullRequest[]): string[] {
-  const set = new Set<string>()
-  for (const pr of prs) {
-    set.add(pr.user.login)
-    for (const r of pr.requested_reviewers) set.add(r.login)
-    for (const r of pr.pendingReviewers) set.add(r.login)
-  }
-  return [...set].sort((a, b) => a.localeCompare(b))
-}
 
 function DonateDialog() {
   return (
@@ -69,15 +56,30 @@ function ThemeToggle() {
 }
 
 function App() {
-  const { data: prs } = usePullRequests()
-  const reviewers = prs ? getUniqueReviewers(prs) : []
-  const allUsernames = prs ? getAllUsernames(prs) : []
-  const [currentUsername, setCurrentUsername] = useState<string | null>(getGitHubUsername)
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!getStoredToken())
+  const [currentUsername, setCurrentUsername] = useState<string | null>(() => getStoredUser()?.login ?? null)
+  const { data: prs } = usePullRequests(isAuthenticated)
   const [resetKey, setResetKey] = useState(0)
 
   useEffect(() => {
-    fetchMappings()
-  }, [])
+    if (isAuthenticated) fetchMappings()
+  }, [isAuthenticated])
+
+  function handleLogin() {
+    const user = getStoredUser()
+    setCurrentUsername(user?.login ?? null)
+    setIsAuthenticated(true)
+  }
+
+  function handleLogout() {
+    clearAuth()
+    setIsAuthenticated(false)
+    setCurrentUsername(null)
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={handleLogin} />
+  }
 
   return (
     <div className='flex h-screen flex-col bg-background p-4 sm:p-6'>
@@ -104,11 +106,16 @@ function App() {
           <DonateDialog />
           <ThemeToggle />
           <NotificationsDialog currentUsername={currentUsername} prs={prs ?? []} />
-          <SettingsDialog
-            reviewers={reviewers}
-            allUsernames={allUsernames}
-            onUsernameChange={setCurrentUsername}
-          />
+          <SettingsDialog />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button size='icon-sm' variant='ghost' className='cursor-pointer' onClick={handleLogout}>
+                <LogOut className='h-4 w-4' />
+                <span className='sr-only'>Sign out</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Sign out ({currentUsername})</TooltipContent>
+          </Tooltip>
         </div>
       </header>
 

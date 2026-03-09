@@ -1,6 +1,7 @@
 import { toast } from 'sonner';
 import type { Repo, PullRequest, Reviewer, ReviewStatus } from '@/types/github';
 import { fetchWorkItemStates } from '@/services/ado';
+import { getStoredToken } from '@/services/github-auth';
 
 const GITHUB_API = 'https://api.github.com';
 const ORG = 'nelnet-nbs';
@@ -13,7 +14,7 @@ type Review = {
 };
 
 function getHeaders(): HeadersInit {
-  const token = import.meta.env.VITE_GITHUB_TOKEN as string;
+  const token = getStoredToken() ?? (import.meta.env.VITE_GITHUB_TOKEN as string);
   return {
     Accept: 'application/vnd.github+json',
     Authorization: `Bearer ${token}`,

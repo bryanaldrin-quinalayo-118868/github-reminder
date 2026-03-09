@@ -1,22 +1,9 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Check, ChevronsUpDown, LogIn, RefreshCw, Save, Settings, X } from 'lucide-react'
-import { toast } from 'sonner'
+import { LogIn, RefreshCw, Settings } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Dialog,
@@ -26,7 +13,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -37,38 +23,25 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
 import { msalInstance, graphScopes } from '@/config/msal'
-import { getGitHubUsername, setGitHubUsername } from '@/config/github-identity'
+import { getStoredUser } from '@/services/github-auth'
 import { getTeamsSettings, saveTeamsSettings } from '@/config/teams-settings'
 import type { SendMode } from '@/config/teams-settings'
-import { fetchMappings, saveMappings } from '@/config/user-mappings'
 import { fetchJoinedTeams, fetchChannels, fetchGroupChats } from '@/services/graph'
-import type { Reviewer } from '@/types/github'
-
-type SettingsDialogProps = {
-  reviewers: Reviewer[];
-  allUsernames: string[];
-  onUsernameChange?: (username: string | null) => void;
-};
 
 function useIsSignedIn() {
   const accounts = msalInstance.getAllAccounts()
   return accounts.length > 0
 }
 
-export default function SettingsDialog({ reviewers, allUsernames, onUsernameChange }: SettingsDialogProps) {
+export default function SettingsDialog() {
   const [open, setOpen] = useState(false)
-  const [draft, setDraft] = useState<Record<string, string>>({})
   const [sendMode, setSendMode] = useState<SendMode>('channel')
-  const [githubUsername, setGithubUsernameState] = useState<string | null>(getGitHubUsername)
-  const [usernamePopoverOpen, setUsernamePopoverOpen] = useState(false)
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   const [signedIn, setSignedIn] = useState(useIsSignedIn)
 
-  const [mappingsLoading, setMappingsLoading] = useState(false)
 
   const { data: teams, isLoading: teamsLoading } = useQuery({
     queryKey: ['teams'],
@@ -91,27 +64,17 @@ export default function SettingsDialog({ reviewers, allUsernames, onUsernameChan
     staleTime: 10 * 60 * 1000,
   })
 
-  async function handleOpen(next: boolean) {
+  function handleOpen(next: boolean) {
+    setOpen(next)
     if (next) {
-      setMappingsLoading(true)
-      const saved = await fetchMappings()
-      const initial: Record<string, string> = { ...saved }
-      for (const r of reviewers) {
-        if (!(r.login in initial)) {
-          initial[r.login] = ''
-        }
-      }
-      setDraft(initial)
-      setMappingsLoading(false)
-
       const teamsSettings = getTeamsSettings()
       setSendMode(teamsSettings.sendMode)
       setSelectedTeamId(teamsSettings.teamId)
       setSelectedChannelId(teamsSettings.channelId)
       setSelectedChatId(teamsSettings.chatId)
       setSignedIn(msalInstance.getAllAccounts().length > 0)
+
     }
-    setOpen(next)
   }
 
   function handleSignIn() {
@@ -149,15 +112,6 @@ export default function SettingsDialog({ reviewers, allUsernames, onUsernameChan
     saveTeamsSettings({ chatId, chatName: name })
   }
 
-  async function handleSave() {
-    try {
-      await saveMappings(draft)
-      toast.success('Settings saved')
-      setOpen(false)
-    } catch (err) {
-      toast.error(`Failed to save: ${err instanceof Error ? err.message : 'Unknown error'}`)
-    }
-  }
 
   const account = msalInstance.getAllAccounts()[0]
 
@@ -188,64 +142,24 @@ export default function SettingsDialog({ reviewers, allUsernames, onUsernameChan
             {/* GitHub Identity */}
             <div className='flex flex-col gap-3'>
               <h3 className='text-sm font-medium'>Your GitHub Account</h3>
-              <p className='text-xs text-muted-foreground'>
-                Select your GitHub username to enable "My PRs" and "Review Requests" filters.
-              </p>
-              <div className='flex items-center gap-2'>
-                <Popover open={usernamePopoverOpen} onOpenChange={setUsernamePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant='outline'
-                      role='combobox'
-                      aria-expanded={usernamePopoverOpen}
-                      className='flex-1 cursor-pointer justify-between'
-                    >
-                      {githubUsername ?? 'Select your username…'}
-                      <ChevronsUpDown className='ml-2 h-4 w-4 shrink-0 opacity-50' />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className='w-[--radix-popover-trigger-width] p-0' align='start'>
-                    <Command>
-                      <CommandInput placeholder='Search username…' />
-                      <CommandList>
-                        <CommandEmpty>No username found.</CommandEmpty>
-                        <CommandGroup>
-                          {allUsernames.map((username) => (
-                            <CommandItem
-                              key={username}
-                              value={username}
-                              onSelect={(value) => {
-                                setGithubUsernameState(value)
-                                setGitHubUsername(value)
-                                onUsernameChange?.(value)
-                                setUsernamePopoverOpen(false)
-                              }}
-                              className='cursor-pointer'
-                            >
-                              <Check className={cn('mr-2 h-4 w-4', githubUsername === username ? 'opacity-100' : 'opacity-0')} />
-                              {username}
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-                {githubUsername && (
-                  <Button
-                    size='icon'
-                    variant='ghost'
-                    className='h-9 w-9 shrink-0 cursor-pointer'
-                    onClick={() => {
-                      setGithubUsernameState(null)
-                      setGitHubUsername(null)
-                      onUsernameChange?.(null)
-                    }}
-                  >
-                    <X className='h-4 w-4' />
-                  </Button>
-                )}
-              </div>
+              {(() => {
+                const user = getStoredUser()
+                return user ? (
+                  <div className='flex items-center gap-3 rounded-md border p-3'>
+                    <Avatar className='h-8 w-8 shrink-0'>
+                      <AvatarImage src={user.avatar_url} alt={user.login} />
+                      <AvatarFallback className='text-xs'>{user.login.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div className='flex flex-col'>
+                      <span className='text-sm font-medium'>{user.name ?? user.login}</span>
+                      <span className='text-xs text-muted-foreground'>@{user.login}</span>
+                    </div>
+                    <Badge variant='outline' className='ml-auto text-xs'>Logged in</Badge>
+                  </div>
+                ) : (
+                  <p className='text-xs text-muted-foreground'>Not signed in.</p>
+                )
+              })()}
             </div>
 
             <Separator />
@@ -404,97 +318,8 @@ export default function SettingsDialog({ reviewers, allUsernames, onUsernameChan
               )}
             </div>
 
-            <Separator />
-
-            {/* Email Mappings */}
-            <div className='flex flex-col gap-3'>
-              <h3 className='text-sm font-medium'>Reviewer Email Mappings</h3>
-              <p className='text-xs text-muted-foreground'>
-                Map GitHub usernames to Teams emails for @mentions.
-              </p>
-
-              {mappingsLoading ? (
-                <div className='flex flex-col gap-3'>
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className='flex items-center gap-3'>
-                      <Skeleton className='h-8 w-8 shrink-0 rounded-full' />
-                      <div className='flex flex-1 flex-col gap-1'>
-                        <Skeleton className='h-3 w-20' />
-                        <Skeleton className='h-8 w-full rounded-md' />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : Object.keys(draft).length === 0 ? (
-                <p className='py-2 text-center text-sm text-muted-foreground'>
-                  No reviewers found. Select a repository with open PRs first.
-                </p>
-              ) : (
-                <div className='flex flex-col gap-3'>
-                  {Object.entries(draft).map(([login, email]) => {
-                    const reviewer = reviewers.find((r) => r.login === login)
-                    return (
-                      <div
-                        key={login}
-                        className='flex items-center gap-3'
-                      >
-                        {reviewer ? (
-                          <Avatar className='h-8 w-8 shrink-0'>
-                            <AvatarImage
-                              src={reviewer.avatar_url}
-                              alt={login}
-                            />
-                            <AvatarFallback className='text-xs'>
-                              {login.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        ) : (
-                          <Avatar className='h-8 w-8 shrink-0'>
-                            <AvatarFallback className='text-xs'>
-                              {login.slice(0, 2).toUpperCase()}
-                            </AvatarFallback>
-                          </Avatar>
-                        )}
-                        <div className='flex flex-1 flex-col gap-1'>
-                          <Label
-                            htmlFor={`email-${login}`}
-                            className='text-xs font-medium'
-                          >
-                            {login}
-                          </Label>
-                          <Input
-                            id={`email-${login}`}
-                            type='email'
-                            placeholder='user@nelnet.com'
-                            value={email}
-                            onChange={(e) =>
-                              setDraft((prev) => ({
-                                ...prev,
-                                [login]: e.target.value,
-                              }))
-                            }
-                            className='h-8 text-sm'
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </div>
           </div>
         </ScrollArea>
-
-        <div className='flex justify-end pt-2'>
-          <Button
-            size='sm'
-            className='cursor-pointer gap-1.5'
-            onClick={handleSave}
-          >
-            <Save className='h-3.5 w-3.5' />
-            Save
-          </Button>
-        </div>
       </DialogContent>
     </Dialog>
   )

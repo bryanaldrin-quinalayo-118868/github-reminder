@@ -5,8 +5,11 @@ import { createRoot } from 'react-dom/client'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { msalInstance } from '@/config/msal'
+import { registerNotificationSW } from '@/services/notification-scheduler'
 import App from './App.tsx'
 import './index.css'
+
+registerNotificationSW()
 
 const queryClient = new QueryClient()
 

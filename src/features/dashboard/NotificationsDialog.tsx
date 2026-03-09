@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { BellRing } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -17,6 +17,7 @@ import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { getNotificationSettings, saveNotificationSettings } from '@/config/notifications'
 import type { NotificationSettings } from '@/config/notifications'
+import { fireNotificationViaSW, syncScheduleToSW } from '@/services/notification-scheduler'
 import type { PullRequest } from '@/types/github'
 
 type NotificationsDialogProps = {
@@ -82,7 +83,6 @@ function buildBody(
 export default function NotificationsDialog({ currentUsername, prs }: NotificationsDialogProps) {
   const [open, setOpen] = useState(false)
   const [settings, setSettings] = useState<NotificationSettings>(getNotificationSettings)
-  const firedTodayRef = useRef<string | null>(null)
 
   const counts = currentUsername ? computeCounts(prs, currentUsername) : null
 
@@ -92,6 +92,10 @@ export default function NotificationsDialog({ currentUsername, prs }: Notificati
     if (settings.enabled && Notification.permission === 'default') {
       await Notification.requestPermission()
     }
+
+    // Immediately sync new settings to the service worker
+    const body = currentUsername ? buildNotificationBody() : null
+    syncScheduleToSW({ enabled: settings.enabled, time: settings.time }, body)
 
     toast.success('Notification settings saved')
     setOpen(false)
@@ -105,9 +109,7 @@ export default function NotificationsDialog({ currentUsername, prs }: Notificati
   }, [currentUsername, prs])
 
   function fireNotification(body: string) {
-    if (Notification.permission === 'granted') {
-      new Notification('PR Reminder', { body, icon: '/vite.svg' })
-    }
+    fireNotificationViaSW(body)
     toast.info(body, { duration: 10000 })
   }
 
@@ -130,32 +132,11 @@ export default function NotificationsDialog({ currentUsername, prs }: Notificati
     }
   }
 
-  // Scheduler — check every 30 seconds if it's time to fire
+  // Sync schedule + notification body to the service worker whenever data changes
   useEffect(() => {
-    if (!currentUsername) return
-
-    function check() {
-      const s = getNotificationSettings()
-      if (!s.enabled) return
-
-      const now = new Date()
-      const hh = String(now.getHours()).padStart(2, '0')
-      const mm = String(now.getMinutes()).padStart(2, '0')
-      const currentTime = `${hh}:${mm}`
-      const today = now.toDateString()
-
-      if (currentTime !== s.time) return
-      if (firedTodayRef.current === today) return
-      firedTodayRef.current = today
-
-      const body = buildNotificationBody()
-      if (!body) return
-      fireNotification(body)
-    }
-
-    const id = setInterval(check, 30_000)
-    check() // run once immediately
-    return () => clearInterval(id)
+    const s = getNotificationSettings()
+    const body = currentUsername ? buildNotificationBody() : null
+    syncScheduleToSW({ enabled: s.enabled, time: s.time }, body)
   }, [buildNotificationBody, currentUsername, prs])
 
   if (!currentUsername) return null

@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
 import { getNotificationSettings, saveNotificationSettings } from '@/config/notifications'
 import type { NotificationSettings } from '@/config/notifications'
@@ -23,10 +24,67 @@ type NotificationsDialogProps = {
   prs: PullRequest[];
 };
 
+function computeCounts(prs: PullRequest[], username: string) {
+  const myPrs = prs.filter((pr) => pr.user.login === username)
+  const reviewRequested = prs.filter((pr) =>
+    pr.pendingReviewers.some((r) => r.login === username) ||
+    pr.requested_reviewers.some((r) => r.login === username),
+  )
+  const myPrsWithConflicts = myPrs.filter((pr) => pr.mergeableState === 'dirty')
+  const myPrsReadyToMerge = myPrs.filter((pr) => pr.mergeableState === 'clean')
+  const myPrsChangesRequested = myPrs.filter((pr) =>
+    pr.pendingReviewers.some((r) => r.reviewStatus === 'changes-requested'),
+  )
+
+  return {
+    myPrs: myPrs.length,
+    reviewRequested: reviewRequested.length,
+    myPrsWithConflicts: myPrsWithConflicts.length,
+    myPrsReadyToMerge: myPrsReadyToMerge.length,
+    myPrsChangesRequested: myPrsChangesRequested.length,
+    totalOpenPrs: prs.length,
+  }
+}
+
+function buildBody(
+  settings: NotificationSettings,
+  counts: ReturnType<typeof computeCounts>,
+): string | null {
+  const lines: string[] = []
+
+  // Opening line — summarize "your" PRs and review requests
+  const openers: string[] = []
+  if (settings.myPrs) openers.push(`${counts.myPrs} open PR${counts.myPrs !== 1 ? 's' : ''}`)
+  if (settings.reviewRequested) openers.push(`${counts.reviewRequested} pending review${counts.reviewRequested !== 1 ? 's' : ''}`)
+  if (openers.length > 0) lines.push(`You have ${openers.join(' and ')}.`)
+
+  // Detail lines — actionable alerts
+  const alerts: string[] = []
+  if (settings.myPrsWithConflicts && counts.myPrsWithConflicts > 0) {
+    alerts.push(`${counts.myPrsWithConflicts} with merge conflicts`)
+  }
+  if (settings.myPrsChangesRequested && counts.myPrsChangesRequested > 0) {
+    alerts.push(`${counts.myPrsChangesRequested} with changes requested`)
+  }
+  if (settings.myPrsReadyToMerge && counts.myPrsReadyToMerge > 0) {
+    alerts.push(`${counts.myPrsReadyToMerge} ready to merge`)
+  }
+  if (alerts.length > 0) lines.push(alerts.join(', ') + '.')
+
+  // Closing line — total across all repos
+  if (settings.totalOpenPrs) {
+    lines.push(`${counts.totalOpenPrs} total open PR${counts.totalOpenPrs !== 1 ? 's' : ''} across all repos.`)
+  }
+
+  return lines.length > 0 ? lines.join('\n') : null
+}
+
 export default function NotificationsDialog({ currentUsername, prs }: NotificationsDialogProps) {
   const [open, setOpen] = useState(false)
   const [settings, setSettings] = useState<NotificationSettings>(getNotificationSettings)
   const firedTodayRef = useRef<string | null>(null)
+
+  const counts = currentUsername ? computeCounts(prs, currentUsername) : null
 
   async function handleSave() {
     saveNotificationSettings(settings)
@@ -42,22 +100,8 @@ export default function NotificationsDialog({ currentUsername, prs }: Notificati
   const buildNotificationBody = useCallback((): string | null => {
     const s = getNotificationSettings()
     if (!currentUsername) return null
-
-    const myPrCount = s.myPrs
-      ? prs.filter((pr) => pr.user.login === currentUsername).length
-      : 0
-    const reviewCount = s.reviewRequested
-      ? prs.filter((pr) =>
-          pr.pendingReviewers.some((r) => r.login === currentUsername) ||
-          pr.requested_reviewers.some((r) => r.login === currentUsername),
-        ).length
-      : 0
-
-    const parts: string[] = []
-    if (s.myPrs) parts.push(`${myPrCount} open PR${myPrCount !== 1 ? 's' : ''}`)
-    if (s.reviewRequested) parts.push(`${reviewCount} PR${reviewCount !== 1 ? 's' : ''} to review`)
-    if (parts.length === 0) return null
-    return `You have ${parts.join(', and ')}.`
+    const c = computeCounts(prs, currentUsername)
+    return buildBody(s, c)
   }, [currentUsername, prs])
 
   function fireNotification(body: string) {
@@ -82,7 +126,7 @@ export default function NotificationsDialog({ currentUsername, prs }: Notificati
         toast.success('Browser notification sent! If you don\'t see it, check your OS notification settings.', { duration: 5000 })
       }
     } else {
-      toast.info('No PRs to report.', { duration: 3000 })
+      toast.info('No items selected for notification.', { duration: 3000 })
     }
   }
 
@@ -115,6 +159,8 @@ export default function NotificationsDialog({ currentUsername, prs }: Notificati
   }, [buildNotificationBody, currentUsername, prs])
 
   if (!currentUsername) return null
+
+  const preview = counts ? buildBody(settings, counts) : null
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (v) setSettings(getNotificationSettings()) }}>
@@ -155,40 +201,81 @@ export default function NotificationsDialog({ currentUsername, prs }: Notificati
             />
           </div>
 
+          <Separator />
+
           {/* What to include */}
           <div className='flex flex-col gap-3'>
             <Label className='text-sm font-medium'>Include in summary</Label>
+
             <div className='flex items-center gap-2'>
               <Checkbox
                 id='notif-my-prs'
                 checked={settings.myPrs}
                 onCheckedChange={(checked) => setSettings((s) => ({ ...s, myPrs: !!checked }))}
               />
-              <Label htmlFor='notif-my-prs' className='text-sm'>My open PRs</Label>
+              <Label htmlFor='notif-my-prs' className='text-sm cursor-pointer'>My open PRs</Label>
             </div>
+
             <div className='flex items-center gap-2'>
               <Checkbox
                 id='notif-review-requested'
                 checked={settings.reviewRequested}
                 onCheckedChange={(checked) => setSettings((s) => ({ ...s, reviewRequested: !!checked }))}
               />
-              <Label htmlFor='notif-review-requested' className='text-sm'>PRs requesting my review</Label>
+              <Label htmlFor='notif-review-requested' className='text-sm cursor-pointer'>PRs requesting my review</Label>
+            </div>
+
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='notif-conflicts'
+                checked={settings.myPrsWithConflicts}
+                onCheckedChange={(checked) => setSettings((s) => ({ ...s, myPrsWithConflicts: !!checked }))}
+              />
+              <Label htmlFor='notif-conflicts' className='text-sm cursor-pointer'>My PRs with merge conflicts</Label>
+            </div>
+
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='notif-changes-requested'
+                checked={settings.myPrsChangesRequested}
+                onCheckedChange={(checked) => setSettings((s) => ({ ...s, myPrsChangesRequested: !!checked }))}
+              />
+              <Label htmlFor='notif-changes-requested' className='text-sm cursor-pointer'>My PRs with changes requested</Label>
+            </div>
+
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='notif-ready-to-merge'
+                checked={settings.myPrsReadyToMerge}
+                onCheckedChange={(checked) => setSettings((s) => ({ ...s, myPrsReadyToMerge: !!checked }))}
+              />
+              <Label htmlFor='notif-ready-to-merge' className='text-sm cursor-pointer'>My PRs ready to merge</Label>
+            </div>
+
+            <div className='flex items-center gap-2'>
+              <Checkbox
+                id='notif-total'
+                checked={settings.totalOpenPrs}
+                onCheckedChange={(checked) => setSettings((s) => ({ ...s, totalOpenPrs: !!checked }))}
+              />
+              <Label htmlFor='notif-total' className='text-sm cursor-pointer'>Total open PRs across all repos</Label>
             </div>
           </div>
 
-          {/* Preview */}
+          <Separator />
+
+          {/* Live Preview */}
           <div className='rounded-md border bg-muted/50 p-3'>
-            <p className='text-xs font-medium text-muted-foreground'>Preview</p>
-            <p className='mt-1 text-sm'>
-              {(() => {
-                const parts: string[] = []
-                if (settings.myPrs) parts.push('X open PRs')
-                if (settings.reviewRequested) parts.push('X PRs to review')
-                return parts.length > 0
-                  ? `"You have ${parts.join(', and ')}."`
-                  : 'No items selected.'
-              })()}
-            </p>
+            <p className='text-xs font-medium text-muted-foreground'>Preview (live)</p>
+            {preview ? (
+              <div className='mt-1.5 flex flex-col gap-0.5'>
+                {preview.split('\n').map((line, i) => (
+                  <p key={i} className='text-sm'>{line}</p>
+                ))}
+              </div>
+            ) : (
+              <p className='mt-1 text-sm text-muted-foreground italic'>No items selected.</p>
+            )}
           </div>
 
           <div className='flex gap-2'>

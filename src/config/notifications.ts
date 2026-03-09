@@ -5,6 +5,10 @@ export type NotificationSettings = {
   time: string; // HH:mm format, PHT (UTC+8)
   myPrs: boolean;
   reviewRequested: boolean;
+  myPrsWithConflicts: boolean;
+  myPrsReadyToMerge: boolean;
+  myPrsChangesRequested: boolean;
+  totalOpenPrs: boolean;
 };
 
 const DEFAULTS: NotificationSettings = {
@@ -12,6 +16,10 @@ const DEFAULTS: NotificationSettings = {
   time: '13:00',
   myPrs: true,
   reviewRequested: true,
+  myPrsWithConflicts: true,
+  myPrsReadyToMerge: true,
+  myPrsChangesRequested: true,
+  totalOpenPrs: false,
 };
 
 export function getNotificationSettings(): NotificationSettings {

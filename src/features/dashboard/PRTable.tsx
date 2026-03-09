@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, GitPullRequest, RefreshCw, Settings, Users, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, CircleCheck, Clock, ExternalLink, GitPullRequest, MessageSquare, RefreshCw, Settings, ShieldAlert, Users, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,7 @@ import { getStateColor } from '@/services/ado'
 import usePullRequests from '@/hooks/usePullRequests'
 import NotifyDialog from '@/features/dashboard/NotifyDialog'
 import type { NotifyEntry } from '@/features/dashboard/NotifyDialog'
-import type { PullRequest, Reviewer } from '@/types/github'
+import type { PendingReviewer, PullRequest } from '@/types/github'
 
 // ---------------------------------------------------------------------------
 // Helpers & sub-components
@@ -114,16 +114,47 @@ function StatsBanner({ prs }: { prs: PullRequest[] }) {
   )
 }
 
-function ReviewerBadge({ reviewer }: { reviewer: Reviewer }) {
+const statusConfig = {
+  'pending': { badge: null, text: 'text-muted-foreground', tooltip: 'Pending review' },
+  'commented': {
+    badge: { bg: 'bg-blue-500', icon: MessageSquare },
+    text: 'text-blue-600 dark:text-blue-400',
+    tooltip: 'Commented — has unresolved threads',
+  },
+  'commented-resolved': {
+    badge: { bg: 'bg-emerald-500', icon: CircleCheck },
+    text: 'text-emerald-600 dark:text-emerald-400',
+    tooltip: 'Commented — all threads resolved',
+  },
+  'changes-requested': {
+    badge: { bg: 'bg-red-500', icon: ShieldAlert },
+    text: 'text-red-600 dark:text-red-400',
+    tooltip: 'Requested changes',
+  },
+} as const;
+
+function ReviewerBadge({ reviewer }: { reviewer: PendingReviewer }) {
+  const config = statusConfig[reviewer.reviewStatus];
+  const BadgeIcon = config.badge?.icon ?? null;
+
   return (
-    <div className='flex items-center gap-1.5'>
-      <Avatar className='h-6 w-6'>
-        <AvatarImage src={reviewer.avatar_url} alt={reviewer.login} />
-        <AvatarFallback className='text-[10px]'>
-          {reviewer.login.slice(0, 2).toUpperCase()}
-        </AvatarFallback>
-      </Avatar>
-      <span className='text-xs text-muted-foreground'>{reviewer.login}</span>
+    <div className='flex items-center gap-1.5 cursor-default' title={config.tooltip}>
+      <div className='relative'>
+        <Avatar className='h-6 w-6'>
+          <AvatarImage src={reviewer.avatar_url} alt={reviewer.login} />
+          <AvatarFallback className='text-[10px]'>
+            {reviewer.login.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        {BadgeIcon && (
+          <div className={`absolute -right-1 -bottom-1 flex h-3.5 w-3.5 items-center justify-center rounded-full ${config.badge!.bg} ring-1 ring-background`}>
+            <BadgeIcon className='h-2 w-2 text-white' />
+          </div>
+        )}
+      </div>
+      <span className={`text-xs ${config.text}`}>
+        {reviewer.login}
+      </span>
     </div>
   )
 }

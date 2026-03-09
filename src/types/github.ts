@@ -12,10 +12,10 @@ export type Reviewer = {
   html_url: string;
 };
 
-export type Review = {
-  id: number;
-  user: Reviewer;
-  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
+export type ReviewStatus = 'pending' | 'commented' | 'commented-resolved' | 'changes-requested';
+
+export type PendingReviewer = Reviewer & {
+  reviewStatus: ReviewStatus;
 };
 
 export type AdoWorkItem = {
@@ -33,7 +33,7 @@ export type PullRequest = {
   updated_at: string;
   user: Reviewer;
   requested_reviewers: Reviewer[];
-  pendingReviewers: Reviewer[];
+  pendingReviewers: PendingReviewer[];
   adoWorkItems: AdoWorkItem[];
   repoName: string;
 };

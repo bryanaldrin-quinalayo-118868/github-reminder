@@ -6,6 +6,7 @@ import { Separator } from '@/components/ui/separator'
 import { getGitHubUsername } from '@/config/github-identity'
 import { fetchMappings } from '@/config/user-mappings'
 import PRTable from '@/features/dashboard/PRTable'
+import NotificationsDialog from '@/features/dashboard/NotificationsDialog'
 import SettingsDialog from '@/features/dashboard/SettingsDialog'
 import { Button } from '@/components/ui/button'
 import usePullRequests from '@/hooks/usePullRequests'
@@ -102,6 +103,7 @@ function App() {
         <div className='flex items-center gap-1'>
           <DonateDialog />
           <ThemeToggle />
+          <NotificationsDialog currentUsername={currentUsername} prs={prs ?? []} />
           <SettingsDialog
             reviewers={reviewers}
             allUsernames={allUsernames}

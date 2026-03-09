@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, Clock, ExternalLink, GitPullRequest, MessageSquare, RefreshCw, Settings, ShieldAlert, Users, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Bell, ChevronDown, CircleCheck, Clock, ExternalLink, GitPullRequest, MessageSquare, RefreshCw, Settings, ShieldAlert, Users, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -528,12 +528,17 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
                   </div>
                 )}
 
-                {pr.pendingReviewers.length > 0 && (
+                {pr.pendingReviewers.length > 0 ? (
                   <div className='flex flex-wrap gap-1.5'>
                     {pr.pendingReviewers.map((reviewer) => (
                       <ReviewerBadge key={reviewer.id} reviewer={reviewer} />
                     ))}
                   </div>
+                ) : (
+                  <span className='inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400'>
+                    <CircleCheck className='h-3 w-3' />
+                    Ready to Merge
+                  </span>
                 )}
               </div>
             ))}
@@ -611,7 +616,10 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
                         ))}
                       </div>
                     ) : (
-                      <span className='text-xs text-muted-foreground'>All reviewed</span>
+                      <span className='inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400'>
+                        <CircleCheck className='h-3 w-3' />
+                        Ready to Merge
+                      </span>
                     )}
                   </TableCell>
                   <TableCell className='text-right'>

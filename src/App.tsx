@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { GitPullRequest, Moon, Sun } from 'lucide-react'
+import { GitPullRequest, Heart, Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
 import { getGitHubUsername } from '@/config/github-identity'
 import { fetchMappings } from '@/config/user-mappings'
@@ -23,6 +24,31 @@ function getAllUsernames(prs: PullRequest[]): string[] {
     for (const r of pr.pendingReviewers) set.add(r.login)
   }
   return [...set].sort((a, b) => a.localeCompare(b))
+}
+
+function DonateDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size='sm' variant='ghost' className='cursor-pointer gap-1.5'>
+          <Heart className='h-4 w-4' />
+          Donate
+        </Button>
+      </DialogTrigger>
+      <DialogContent className='max-w-sm text-center'>
+        <DialogHeader>
+          <DialogTitle>Donate</DialogTitle>
+        </DialogHeader>
+        <div className='flex flex-col items-center gap-4 py-4'>
+          <Heart className='h-12 w-12 text-red-500' />
+          <p className='text-lg font-semibold'>Just kidding lol</p>
+          <p className='text-sm text-muted-foreground'>
+            This app is free. Go buy yourself a coffee instead.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
 }
 
 function ThemeToggle() {
@@ -74,6 +100,7 @@ function App() {
           </div>
         </button>
         <div className='flex items-center gap-1'>
+          <DonateDialog />
           <ThemeToggle />
           <SettingsDialog
             reviewers={reviewers}
@@ -86,6 +113,18 @@ function App() {
       <Separator className='my-4 shrink-0' />
 
       <PRTable currentUsername={currentUsername} resetKey={resetKey} />
+
+      <p className='shrink-0 pt-2 text-center text-xs text-muted-foreground'>
+        Want a feature added?{' '}
+        <a
+          href='https://teams.microsoft.com/l/chat/0/0?users=bryan.quinalayo@nelnetphilippines.com'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='underline hover:text-foreground'
+        >
+          Hit up @Bryan on Teams
+        </a>.
+      </p>
     </div>
   )
 }

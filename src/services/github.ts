@@ -112,7 +112,7 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
   // Parse ADO work item IDs from all PRs and batch-fetch their states (non-blocking)
   const prAdoIds = rawPrs.map((pr) => parseAdoIds(pr.body));
   const allAdoIds = [...new Set(prAdoIds.flat())];
-  let adoMap = new Map<number, { id: number; url: string; state: string }>();
+  let adoMap = new Map<number, { id: number; url: string; state: string; sprint: string }>();
   try {
     const adoItems = await fetchWorkItemStates(allAdoIds);
     adoMap = new Map(adoItems.map((wi) => [wi.id, wi]));

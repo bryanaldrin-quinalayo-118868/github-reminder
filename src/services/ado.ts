@@ -13,25 +13,31 @@ export type AdoWorkItem = {
   id: number;
   url: string;
   state: string;
+  sprint: string;
 };
 
 export async function fetchWorkItemStates(ids: number[]): Promise<AdoWorkItem[]> {
   if (ids.length === 0) return [];
 
   const res = await fetch(
-    `${ADO_API}/${PROJECT}/_apis/wit/workitems?ids=${ids.join(',')}&fields=System.State&api-version=7.1`,
+    `${ADO_API}/${PROJECT}/_apis/wit/workitems?ids=${ids.join(',')}&fields=System.State,System.IterationPath&api-version=7.1`,
     { headers: getHeaders() },
   );
 
   if (!res.ok) return [];
 
-  const data: { value: { id: number; fields: { 'System.State': string } }[] } = await res.json();
+  const data: { value: { id: number; fields: { 'System.State': string; 'System.IterationPath': string } }[] } = await res.json();
 
-  return data.value.map((wi) => ({
-    id: wi.id,
-    url: `${ADO_API}/${PROJECT}/_workitems/edit/${wi.id}`,
-    state: wi.fields['System.State'],
-  }));
+  return data.value.map((wi) => {
+    const iterPath = wi.fields['System.IterationPath'] ?? '';
+    const sprint = iterPath.includes('\\') ? iterPath.split('\\').pop()! : iterPath;
+    return {
+      id: wi.id,
+      url: `${ADO_API}/${PROJECT}/_workitems/edit/${wi.id}`,
+      state: wi.fields['System.State'],
+      sprint,
+    };
+  });
 }
 
 export function getStateColor(state: string): { bg: string; text: string } {

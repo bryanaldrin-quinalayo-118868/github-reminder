@@ -151,12 +151,13 @@ function ReviewerBadge({ reviewer }: { reviewer: PendingReviewer }) {
             )}
           </div>
           <span className={`text-xs ${config.text}`}>
-            {reviewer.login}
+            {reviewer.login.split('-')[0]}
           </span>
         </div>
       </TooltipTrigger>
       <TooltipContent side='top' className='text-xs'>
-        {config.tooltip}
+        <p>{reviewer.login}</p>
+        <p className='text-muted-foreground'>{config.tooltip}</p>
       </TooltipContent>
     </Tooltip>
   )
@@ -260,6 +261,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
   const [repoFilters, setRepoFilters] = useState<Set<string>>(new Set())
   const [ownerFilters, setOwnerFilters] = useState<Set<string>>(new Set())
   const [adoFilters, setAdoFilters] = useState<Set<string>>(new Set())
+  const [sprintFilters, setSprintFilters] = useState<Set<string>>(new Set())
   const [reviewerFilters, setReviewerFilters] = useState<Set<string>>(new Set())
   const [idleSort, setIdleSort] = useState<'none' | 'asc' | 'desc'>('none')
   const [notifyOpen, setNotifyOpen] = useState(false)
@@ -307,6 +309,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
     if (repoFilters.size > 0 && !repoFilters.has(pr.repoName)) return false
     if (!isOwnerDisabled && ownerFilters.size > 0 && !ownerFilters.has(pr.user.login)) return false
     if (adoFilters.size > 0 && !pr.adoWorkItems.some((wi) => adoFilters.has(wi.state))) return false
+    if (sprintFilters.size > 0 && !pr.adoWorkItems.some((wi) => sprintFilters.has(wi.sprint))) return false
     if (!isReviewerDisabled && reviewerFilters.size > 0 && !pr.pendingReviewers.some((r) => reviewerFilters.has(r.login))) return false
     return true
   })
@@ -315,6 +318,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
     (repoFilters.size > 0 ? 1 : 0) +
     (!isOwnerDisabled && ownerFilters.size > 0 ? 1 : 0) +
     (adoFilters.size > 0 ? 1 : 0) +
+    (sprintFilters.size > 0 ? 1 : 0) +
     (!isReviewerDisabled && reviewerFilters.size > 0 ? 1 : 0) +
     (idleSort !== 'none' ? 1 : 0)
 
@@ -329,6 +333,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
   const allRepos = [...new Set(prs.map((pr) => pr.repoName))].sort()
   const allOwners = [...new Set(prs.map((pr) => pr.user.login))].sort()
   const adoStates = [...new Set(prs.flatMap((pr) => pr.adoWorkItems.map((wi) => wi.state)))].sort()
+  const allSprints = [...new Set(prs.flatMap((pr) => pr.adoWorkItems.map((wi) => wi.sprint)).filter(Boolean))].sort()
   const allReviewerLogins = [...new Map(
     prs.flatMap((pr) => pr.pendingReviewers).map((r) => [r.login, r]),
   ).values()].sort((a, b) => a.login.localeCompare(b.login)).map((r) => r.login)
@@ -430,6 +435,14 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
         />
 
         <MultiSelect
+          label='Sprint'
+          selected={sprintFilters}
+          options={allSprints}
+          onChange={setSprintFilters}
+          width='w-32 sm:w-44'
+        />
+
+        <MultiSelect
           label='Reviewer'
           selected={reviewerFilters}
           options={allReviewerLogins}
@@ -521,7 +534,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
                           rel='noopener noreferrer'
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${color.bg} ${color.text} hover:opacity-80 transition-opacity`}
                         >
-                          #{wi.id} · {wi.state}
+                          #{wi.id} · {wi.state}{wi.sprint ? ` · ${wi.sprint}` : ''}
                         </a>
                       )
                     })}
@@ -599,7 +612,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
                               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${color.bg} ${color.text} hover:opacity-80 transition-opacity`}
                             >
                               #{wi.id}
-                              <span className='hidden lg:inline'>· {wi.state}</span>
+                              <span className='hidden lg:inline'>· {wi.state}{wi.sprint ? ` · ${wi.sprint}` : ''}</span>
                             </a>
                           )
                         })}

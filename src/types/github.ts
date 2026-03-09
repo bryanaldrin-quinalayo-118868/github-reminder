@@ -22,6 +22,7 @@ export type AdoWorkItem = {
   id: number;
   url: string;
   state: string;
+  sprint: string;
 };
 
 export type PullRequest = {

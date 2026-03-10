@@ -70,6 +70,40 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
           </a>
         </div>
 
+        {/* SSO Authorization */}
+        <div className='rounded-lg border border-amber-500/30 bg-amber-500/10 p-4'>
+          <p className='text-sm font-medium'>
+            ⚠️ Important: Authorize SSO for nelnet-nbs
+          </p>
+          <p className='mt-1.5 text-sm text-muted-foreground'>
+            After creating your token, you <span className='font-medium text-foreground'>must</span> authorize it for the <span className='font-medium text-foreground'>nelnet-nbs</span> organization, or API requests will be denied.
+          </p>
+          <ol className='mt-2 list-inside list-decimal space-y-1.5 text-sm text-muted-foreground'>
+            <li>
+              Go to{' '}
+              <a
+                href='https://github.com/settings/tokens'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='font-medium text-primary hover:underline'
+              >
+                GitHub → Settings → Tokens
+              </a>
+            </li>
+            <li>Find your token and click <span className='font-medium text-foreground'>Configure SSO</span> next to it</li>
+            <li>Click <span className='font-medium text-foreground'>Authorize</span> next to <span className='font-medium text-foreground'>nelnet-nbs</span></li>
+          </ol>
+          <a
+            href='https://github.com/settings/tokens'
+            target='_blank'
+            rel='noopener noreferrer'
+            className='mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline'
+          >
+            <ExternalLink className='h-3.5 w-3.5' />
+            Open GitHub token settings
+          </a>
+        </div>
+
         {/* Token form */}
         <form onSubmit={handleSubmit} className='flex flex-col gap-4'>
           <div className='flex flex-col gap-1.5'>

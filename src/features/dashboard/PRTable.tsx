@@ -787,8 +787,35 @@ export default function PRTable({ currentUsername, resetKey }: { currentUsername
 
   if (isError && (!prs || prs.length === 0)) {
     return (
-      <div className='flex flex-1 items-center justify-center text-destructive'>
-        Failed to load pull requests.
+      <div className='flex flex-1 items-center justify-center p-4'>
+        <div className='flex w-full max-w-md flex-col gap-4 rounded-xl border border-destructive/30 bg-destructive/5 p-6'>
+          <div className='flex items-center gap-2 text-destructive'>
+            <AlertTriangle className='h-5 w-5 shrink-0' />
+            <p className='font-semibold'>Failed to load pull requests</p>
+          </div>
+          <p className='text-sm text-muted-foreground'>
+            This usually happens when your GitHub token hasn't been authorized for SSO. Make sure you've enabled SSO for the <span className='font-medium text-foreground'>nelnet-nbs</span> organization:
+          </p>
+          <ol className='list-inside list-decimal space-y-1.5 text-sm text-muted-foreground'>
+            <li>
+              Go to{' '}
+              <a
+                href='https://github.com/settings/tokens'
+                target='_blank'
+                rel='noopener noreferrer'
+                className='font-medium text-primary hover:underline'
+              >
+                GitHub → Settings → Tokens
+              </a>
+            </li>
+            <li>Find your token and click <span className='font-medium text-foreground'>Configure SSO</span></li>
+            <li>Click <span className='font-medium text-foreground'>Authorize</span> next to <span className='font-medium text-foreground'>nelnet-nbs</span></li>
+          </ol>
+          <Button size='sm' variant='outline' className='cursor-pointer gap-1.5 self-start' onClick={() => refetchAll()}>
+            <RefreshCw className='h-3.5 w-3.5' />
+            Retry
+          </Button>
+        </div>
       </div>
     )
   }

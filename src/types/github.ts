@@ -31,6 +31,8 @@ export type AdoWorkItem = {
   sprint: string;
 };
 
+export type PrType = 'Feature' | 'Bugfix' | 'Misc';
+
 export type PullRequest = {
   id: number;
   number: number;
@@ -44,6 +46,7 @@ export type PullRequest = {
   adoWorkItems: AdoWorkItem[];
   repoName: string;
   mergeableState: 'clean' | 'blocked' | 'behind' | 'dirty' | 'unstable' | 'draft' | 'unknown';
+  prType: PrType;
 };
 
 export type UserMapping = {

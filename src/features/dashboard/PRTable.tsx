@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Ban, Bell, ChevronDown, CircleCheck, Clock, ExternalLink, GitMerge, GitPullRequest, Loader2, MessageSquare, RefreshCw, Settings, ShieldAlert, TriangleAlert, Users, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, Ban, Bell, ChevronDown, CircleCheck, Clock, ExternalLink, GitMerge, GitPullRequest, Loader2, MessageSquare, RefreshCw, Search, Settings, ShieldAlert, TriangleAlert, Users, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,7 +17,7 @@ import { getStateColor } from '@/services/ado'
 import usePullRequests from '@/hooks/usePullRequests'
 import NotifyDialog from '@/features/dashboard/NotifyDialog'
 import type { NotifyEntry } from '@/features/dashboard/NotifyDialog'
-import type { PendingReviewer, PullRequest } from '@/types/github'
+import type { PendingReviewer, PrType, PullRequest } from '@/types/github'
 
 // ---------------------------------------------------------------------------
 // Helpers & sub-components
@@ -132,6 +132,20 @@ function MergeStatusBadge({ state }: { state: string }) {
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${config.className}`}>
       <Icon className={`h-3 w-3 ${state === 'unknown' ? 'animate-spin' : ''}`} />
       {config.label}
+    </span>
+  )
+}
+
+const prTypeConfig: Record<import('@/types/github').PrType, string> = {
+  Feature: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
+  Bugfix: 'bg-orange-500/15 text-orange-600 dark:text-orange-400',
+  Misc: 'bg-muted text-muted-foreground',
+}
+
+function PrTypeBadge({ type }: { type: import('@/types/github').PrType }) {
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${prTypeConfig[type] ?? prTypeConfig.Misc}`}>
+      {type}
     </span>
   )
 }
@@ -302,6 +316,8 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
   const [adoFilters, setAdoFilters] = useState<Set<string>>(new Set())
   const [sprintFilters, setSprintFilters] = useState<Set<string>>(new Set())
   const [reviewerFilters, setReviewerFilters] = useState<Set<string>>(new Set())
+  const [typeFilters, setTypeFilters] = useState<Set<string>>(new Set())
+  const [searchQuery, setSearchQuery] = useState('')
   const [idleSort, setIdleSort] = useState<'none' | 'asc' | 'desc'>('none')
   const [notifyOpen, setNotifyOpen] = useState(false)
   const [notifyEntries, setNotifyEntries] = useState<NotifyEntry[]>([])
@@ -350,6 +366,8 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
     if (adoFilters.size > 0 && !pr.adoWorkItems.some((wi) => adoFilters.has(wi.state))) return false
     if (sprintFilters.size > 0 && !pr.adoWorkItems.some((wi) => sprintFilters.has(wi.sprint))) return false
     if (!isReviewerDisabled && reviewerFilters.size > 0 && !pr.pendingReviewers.some((r) => reviewerFilters.has(r.login))) return false
+    if (typeFilters.size > 0 && !typeFilters.has(pr.prType)) return false
+    if (searchQuery && !pr.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
     return true
   })
 
@@ -359,6 +377,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
     (adoFilters.size > 0 ? 1 : 0) +
     (sprintFilters.size > 0 ? 1 : 0) +
     (!isReviewerDisabled && reviewerFilters.size > 0 ? 1 : 0) +
+    (typeFilters.size > 0 ? 1 : 0) +
     (idleSort !== 'none' ? 1 : 0)
 
   const sortedPrs = idleSort === 'none'
@@ -373,6 +392,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
   const allOwners = [...new Set(prs.map((pr) => pr.user.login))].sort()
   const adoStates = [...new Set(prs.flatMap((pr) => pr.adoWorkItems.map((wi) => wi.state)))].sort()
   const allSprints = [...new Set(prs.flatMap((pr) => pr.adoWorkItems.map((wi) => wi.sprint)).filter(Boolean))].sort()
+  const allPrTypes: PrType[] = ['Feature', 'Bugfix', 'Misc']
   const allReviewerLogins = [...new Map(
     prs.flatMap((pr) => pr.pendingReviewers).map((r) => [r.login, r]),
   ).values()].sort((a, b) => a.login.localeCompare(b.login)).map((r) => r.login)
@@ -436,6 +456,27 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
         </div>
       )}
 
+      {/* Search */}
+      <div className='relative w-full sm:w-72'>
+        <Search className='absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground' />
+        <input
+          type='text'
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder='Search PR titles…'
+          className='h-8 w-full rounded-md border bg-background pl-8 pr-8 text-sm outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring'
+        />
+        {searchQuery && (
+          <button
+            type='button'
+            onClick={() => setSearchQuery('')}
+            className='absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground'
+          >
+            <X className='h-3.5 w-3.5' />
+          </button>
+        )}
+      </div>
+
       {/* Toolbar */}
       <div className='flex flex-wrap items-center gap-2'>
         {loadingProgress && (
@@ -488,6 +529,14 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
           onChange={setReviewerFilters}
           width='w-32 sm:w-44'
           disabled={isReviewerDisabled}
+        />
+
+        <MultiSelect
+          label='Type'
+          selected={typeFilters}
+          options={allPrTypes}
+          onChange={setTypeFilters}
+          width='w-28 sm:w-32'
         />
 
         {activeFilterCount > 0 && (
@@ -545,6 +594,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
                       <span className='rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium'>
                         {pr.repoName}
                       </span>
+                      <PrTypeBadge type={pr.prType} />
                       <span>#{pr.number}</span>
                       <span>·</span>
                       <span>{pr.user.login}</span>
@@ -631,6 +681,7 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
                       <span className='rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium'>
                         {pr.repoName}
                       </span>
+                      <PrTypeBadge type={pr.prType} />
                       <span>#{pr.number}</span>
                       <span>·</span>
                       <span>{pr.user.login}</span>

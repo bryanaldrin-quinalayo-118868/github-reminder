@@ -82,7 +82,7 @@ function App() {
   }
 
   return (
-    <div className='flex h-screen flex-col bg-background p-4 sm:p-6'>
+    <div className='flex h-screen flex-col bg-background p-4 sm:p-6 mx-auto w-full max-w-[1920px]'>
       <header className='flex shrink-0 items-center justify-between'>
         <button
           type='button'

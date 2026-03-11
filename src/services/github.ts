@@ -1,5 +1,5 @@
 import { toast } from 'sonner';
-import type { Repo, PullRequest, Reviewer, ReviewStatus } from '@/types/github';
+import type { Repo, PullRequest, PrType, Reviewer, ReviewStatus } from '@/types/github';
 import { fetchWorkItemStates } from '@/services/ado';
 import { getStoredToken } from '@/services/github-auth';
 
@@ -179,6 +179,21 @@ function buildUnresolvedMap(threads: ReviewThread[]): Map<string, boolean> {
 // Helpers
 // ---------------------------------------------------------------------------
 
+function derivePrType(branchName: string, title: string): PrType {
+  const branch = branchName.toLowerCase();
+  const t = title.toLowerCase();
+
+  // Check branch prefix first
+  if (branch.startsWith('feature/') || branch.startsWith('feat/')) return 'Feature';
+  if (branch.startsWith('bugfix/') || branch.startsWith('bug/') || branch.startsWith('fix/') || branch.startsWith('hotfix/')) return 'Bugfix';
+
+  // Fallback: check PR title keywords
+  if (t.includes('feature') || t.includes('feat:') || t.includes('✨')) return 'Feature';
+  if (t.includes('bugfix') || t.includes('bug fix') || t.includes('fix:') || t.includes('hotfix') || t.includes('🐛')) return 'Bugfix';
+
+  return 'Misc';
+}
+
 function parseAdoIds(body: string | null): number[] {
   if (!body) return [];
   const matches = body.matchAll(/https:\/\/dev\.azure\.com\/[^\s)]+\/_workitems\/edit\/(\d+)/g);
@@ -201,7 +216,7 @@ function resolveReviewStatus(latestState: string, hasUnresolved: boolean): Revie
 // ---------------------------------------------------------------------------
 
 export async function fetchOpenPullRequests(repoName: string): Promise<PullRequest[]> {
-  const rawPrs: Omit<PullRequest, 'pendingReviewers' | 'adoWorkItems'>[] = [];
+  const rawPrs: (Omit<PullRequest, 'pendingReviewers' | 'adoWorkItems'> & { head?: { ref?: string } })[] = [];
   let page = 1;
   const perPage = 100;
 
@@ -297,7 +312,8 @@ export async function fetchOpenPullRequests(repoName: string): Promise<PullReque
         .map((id) => adoMap.get(id))
         .filter((wi): wi is NonNullable<typeof wi> => !!wi);
 
-      return { ...pr, pendingReviewers, adoWorkItems, repoName, mergeableState };
+      const prType = derivePrType(pr.head?.ref ?? '', pr.title ?? '');
+      return { ...pr, pendingReviewers, adoWorkItems, repoName, mergeableState, prType };
     }),
   );
 

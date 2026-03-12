@@ -233,6 +233,16 @@ type MultiSelectProps = {
 function MultiSelect({ label, selected, options, onChange, renderOption, width = 'w-40', disabled = false }: MultiSelectProps) {
   const detailsRef = useRef<HTMLDetailsElement>(null)
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (detailsRef.current && !detailsRef.current.contains(e.target as Node)) {
+        detailsRef.current.open = false
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   function toggle(value: string) {
     const next = new Set(selected)
     if (next.has(value)) next.delete(value)

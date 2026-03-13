@@ -1,3 +1,4 @@
+import { InteractionRequiredAuthError } from '@azure/msal-browser';
 import { msalInstance, graphScopes, chatScopes } from '@/config/msal';
 
 const GRAPH_API = 'https://graph.microsoft.com/v1.0';
@@ -8,12 +9,19 @@ async function getAccessToken(scopes: string[] = graphScopes): Promise<string> {
     throw new Error('No authenticated account. Please sign in first.');
   }
 
-  const result = await msalInstance.acquireTokenSilent({
-    scopes,
-    account: accounts[0],
-  });
-
-  return result.accessToken;
+  try {
+    const result = await msalInstance.acquireTokenSilent({
+      scopes,
+      account: accounts[0],
+    });
+    return result.accessToken;
+  } catch (error) {
+    if (error instanceof InteractionRequiredAuthError) {
+      await msalInstance.acquireTokenRedirect({ scopes });
+      throw new Error('Redirecting for consent...');
+    }
+    throw error;
+  }
 }
 
 async function graphFetch<T>(endpoint: string, options?: RequestInit, scopes?: string[]): Promise<T> {

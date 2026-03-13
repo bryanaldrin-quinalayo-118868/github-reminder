@@ -21,6 +21,3 @@ export const graphScopes = [
   'User.ReadBasic.All',
 ];
 
-export const chatScopes = [
-  'Chat.ReadWrite',
-];

@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { msalInstance } from '@/config/msal'
 import { getTeamsSettings } from '@/config/teams-settings'
 import { getTeamsEmail } from '@/config/user-mappings'
-import { sendChannelMessage, sendChatMessage } from '@/services/graph'
+import { sendChannelMessage } from '@/services/graph'
 import type { Reviewer } from '@/types/github'
 
 export type NotifyEntry = {
@@ -83,10 +83,9 @@ export default function NotifyDialog({ entries, open, onOpenChange }: NotifyDial
     const isSignedIn = msalInstance.getAllAccounts().length > 0
     const settings = getTeamsSettings()
 
-    const isChannelReady = settings.sendMode === 'channel' && settings.teamId && settings.channelId
-    const isChatReady = settings.sendMode === 'chat' && settings.chatId
+    const isChannelReady = settings.teamId && settings.channelId
 
-    if (!isSignedIn || (!isChannelReady && !isChatReady)) {
+    if (!isSignedIn || !isChannelReady) {
       toast.warning('Teams not configured. Go to Settings to sign in and select a destination.')
       return
     }
@@ -110,9 +109,7 @@ export default function NotifyDialog({ entries, open, onOpenChange }: NotifyDial
 
         if (reviewerPayload.length === 0) continue
 
-        if (settings.sendMode === 'chat' && settings.chatId) {
-          await sendChatMessage(settings.chatId, entry.prTitle, entry.prUrl, reviewerPayload, message)
-        } else if (settings.teamId && settings.channelId) {
+        if (settings.teamId && settings.channelId) {
           await sendChannelMessage(settings.teamId, settings.channelId, entry.prTitle, entry.prUrl, reviewerPayload, message)
         }
       }

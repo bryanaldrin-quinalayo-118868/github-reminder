@@ -26,8 +26,7 @@ import { Separator } from '@/components/ui/separator'
 import { msalInstance, graphScopes } from '@/config/msal'
 import { getStoredUser } from '@/services/github-auth'
 import { getTeamsSettings, saveTeamsSettings } from '@/config/teams-settings'
-import type { SendMode } from '@/config/teams-settings'
-import { fetchJoinedTeams, fetchChannels, fetchGroupChats } from '@/services/graph'
+import { fetchJoinedTeams, fetchChannels } from '@/services/graph'
 
 function useIsSignedIn() {
   const accounts = msalInstance.getAllAccounts()
@@ -36,10 +35,8 @@ function useIsSignedIn() {
 
 export default function SettingsDialog() {
   const [open, setOpen] = useState(false)
-  const [sendMode, setSendMode] = useState<SendMode>('channel')
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
   const [signedIn, setSignedIn] = useState(useIsSignedIn)
 
 
@@ -57,23 +54,13 @@ export default function SettingsDialog() {
     staleTime: 10 * 60 * 1000,
   })
 
-  const { data: groupChats, isLoading: chatsLoading } = useQuery({
-    queryKey: ['groupChats'],
-    queryFn: fetchGroupChats,
-    enabled: signedIn,
-    staleTime: 10 * 60 * 1000,
-  })
-
   function handleOpen(next: boolean) {
     setOpen(next)
     if (next) {
       const teamsSettings = getTeamsSettings()
-      setSendMode(teamsSettings.sendMode)
       setSelectedTeamId(teamsSettings.teamId)
       setSelectedChannelId(teamsSettings.channelId)
-      setSelectedChatId(teamsSettings.chatId)
       setSignedIn(msalInstance.getAllAccounts().length > 0)
-
     }
   }
 
@@ -83,13 +70,6 @@ export default function SettingsDialog() {
 
   function handleSwitchAccount() {
     msalInstance.loginRedirect({ scopes: graphScopes, prompt: 'select_account' })
-  }
-
-
-  function handleModeChange(mode: string) {
-    const m = mode as SendMode
-    setSendMode(m)
-    saveTeamsSettings({ sendMode: m })
   }
 
   function handleTeamChange(teamId: string) {
@@ -104,14 +84,6 @@ export default function SettingsDialog() {
     const channel = channels?.find((c) => c.id === channelId)
     saveTeamsSettings({ channelId, channelName: channel?.displayName ?? null })
   }
-
-  function handleChatChange(chatId: string) {
-    setSelectedChatId(chatId)
-    const chat = groupChats?.find((c) => c.id === chatId)
-    const name = chat?.topic || chat?.members.join(', ') || 'Group chat'
-    saveTeamsSettings({ chatId, chatName: name })
-  }
-
 
   const account = msalInstance.getAllAccounts()[0]
 
@@ -187,34 +159,6 @@ export default function SettingsDialog() {
                   </div>
 
                   <div className='flex flex-col gap-1'>
-                    <Label className='text-xs font-medium'>Send to</Label>
-                    <Select
-                      value={sendMode}
-                      onValueChange={handleModeChange}
-                    >
-                      <SelectTrigger className='cursor-pointer'>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem
-                          value='channel'
-                          className='cursor-pointer'
-                        >
-                          Team Channel
-                        </SelectItem>
-                        <SelectItem
-                          value='chat'
-                          className='cursor-pointer'
-                        >
-                          Group Chat
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {sendMode === 'channel' && (
-                    <>
-                      <div className='flex flex-col gap-1'>
                         <Label className='text-xs font-medium'>Team</Label>
                         {teamsLoading ? (
                           <Skeleton className='h-9 w-full rounded-md' />
@@ -241,58 +185,27 @@ export default function SettingsDialog() {
                         )}
                       </div>
 
-                      {selectedTeamId && (
-                        <div className='flex flex-col gap-1'>
-                          <Label className='text-xs font-medium'>Channel</Label>
-                          {channelsLoading ? (
-                            <Skeleton className='h-9 w-full rounded-md' />
-                          ) : (
-                            <Select
-                              value={selectedChannelId ?? undefined}
-                              onValueChange={handleChannelChange}
-                            >
-                              <SelectTrigger className='cursor-pointer'>
-                                <SelectValue placeholder='Select a channel' />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {channels?.map((channel) => (
-                                  <SelectItem
-                                    key={channel.id}
-                                    value={channel.id}
-                                    className='cursor-pointer'
-                                  >
-                                    {channel.displayName}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {sendMode === 'chat' && (
+                  {selectedTeamId && (
                     <div className='flex flex-col gap-1'>
-                      <Label className='text-xs font-medium'>Group Chat</Label>
-                      {chatsLoading ? (
+                      <Label className='text-xs font-medium'>Channel</Label>
+                      {channelsLoading ? (
                         <Skeleton className='h-9 w-full rounded-md' />
                       ) : (
                         <Select
-                          value={selectedChatId ?? undefined}
-                          onValueChange={handleChatChange}
+                          value={selectedChannelId ?? undefined}
+                          onValueChange={handleChannelChange}
                         >
                           <SelectTrigger className='cursor-pointer'>
-                            <SelectValue placeholder='Select a group chat' />
+                            <SelectValue placeholder='Select a channel' />
                           </SelectTrigger>
                           <SelectContent>
-                            {groupChats?.map((chat) => (
+                            {channels?.map((channel) => (
                               <SelectItem
-                                key={chat.id}
-                                value={chat.id}
+                                key={channel.id}
+                                value={channel.id}
                                 className='cursor-pointer'
                               >
-                                {chat.topic || chat.members.join(', ') || 'Unnamed chat'}
+                                {channel.displayName}
                               </SelectItem>
                             ))}
                           </SelectContent>

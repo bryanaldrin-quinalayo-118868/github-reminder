@@ -1,5 +1,5 @@
 import { InteractionRequiredAuthError } from '@azure/msal-browser';
-import { msalInstance, graphScopes, chatScopes } from '@/config/msal';
+import { msalInstance, graphScopes } from '@/config/msal';
 
 const GRAPH_API = 'https://graph.microsoft.com/v1.0';
 
@@ -53,13 +53,6 @@ export type Channel = {
   displayName: string;
 };
 
-export type GroupChat = {
-  id: string;
-  topic: string | null;
-  chatType: string;
-  members: string[];
-};
-
 export async function fetchJoinedTeams(): Promise<Team[]> {
   const data = await graphFetch<{ value: Team[] }>('/me/joinedTeams');
   return data.value;
@@ -70,23 +63,6 @@ export async function fetchChannels(teamId: string): Promise<Channel[]> {
     `/teams/${teamId}/channels`,
   );
   return data.value;
-}
-
-export async function fetchGroupChats(): Promise<GroupChat[]> {
-  const data = await graphFetch<{ value: { id: string; topic: string | null; chatType: string }[] }>(
-    '/me/chats?$filter=chatType eq \'group\'&$expand=members&$top=50',
-    undefined,
-    chatScopes,
-  );
-
-  return data.value.map((chat) => ({
-    id: chat.id,
-    topic: chat.topic,
-    chatType: chat.chatType,
-    members: ((chat as Record<string, unknown>).members as { displayName: string }[] | undefined)?.map(
-      (m) => m.displayName,
-    ) ?? [],
-  }));
 }
 
 type Mention = {
@@ -166,20 +142,3 @@ export async function sendChannelMessage(
   });
 }
 
-export async function sendChatMessage(
-  chatId: string,
-  prTitle: string,
-  prUrl: string,
-  reviewers: { email: string; displayName: string }[],
-  customMessage?: string,
-): Promise<void> {
-  const { content, mentions } = await buildMentionPayload(prTitle, prUrl, reviewers, customMessage);
-
-  await graphFetch(`/chats/${chatId}/messages`, {
-    method: 'POST',
-    body: JSON.stringify({
-      body: { contentType: 'html', content },
-      mentions,
-    }),
-  }, chatScopes);
-}

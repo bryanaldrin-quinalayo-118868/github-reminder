@@ -126,7 +126,17 @@ function PRDataTable({ prs, loadingProgress, dataUpdatedAt, isRefetching, onRefr
   ).values()].sort((a, b) => a.login.localeCompare(b.login)).map((r) => r.login)
 
   function handleNotifySingle(pr: PullRequest) {
-    setNotifyEntries([{ prTitle: pr.title, prUrl: pr.html_url, reviewers: pr.pendingReviewers }])
+    setNotifyEntries([{
+      prTitle: pr.title,
+      prUrl: pr.html_url,
+      reviewers: pr.pendingReviewers,
+      repoName: pr.repoName,
+      prNumber: pr.number,
+      authorLogin: pr.user.login,
+      adoWorkItems: pr.adoWorkItems,
+      totalReviewers: pr.pendingReviewers.length,
+      mergeableState: pr.mergeableState,
+    }])
     setNotifyOpen(true)
   }
 

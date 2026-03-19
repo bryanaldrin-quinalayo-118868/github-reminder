@@ -11,16 +11,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import RichTextEditor from '@/components/ui/rich-text-editor'
 import { msalInstance } from '@/config/msal'
 import { getTeamsSettings } from '@/config/teams-settings'
 import { getTeamsEmail } from '@/config/user-mappings'
 import { sendChannelMessage } from '@/services/graph'
-import type { Reviewer } from '@/types/github'
+import type { AdoWorkItem, Reviewer } from '@/types/github'
 
 export type NotifyEntry = {
   prTitle: string;
   prUrl: string;
   reviewers: Reviewer[];
+  repoName: string;
+  prNumber: number;
+  authorLogin: string;
+  adoWorkItems: AdoWorkItem[];
+  totalReviewers: number;
+  mergeableState: string;
 };
 
 type NotifyDialogProps = {
@@ -39,7 +46,7 @@ type ReviewerState = {
 export default function NotifyDialog({ entries, open, onOpenChange }: NotifyDialogProps) {
   const isSinglePr = entries.length === 1
 
-  const [message, setMessage] = useState('please review this PR.')
+  const [message, setMessage] = useState('<p>please review this PR.</p>')
   const [sending, setSending] = useState(false)
   const [reviewerStates, setReviewerStates] = useState<Map<string, ReviewerState>>(() => {
     const map = new Map<string, ReviewerState>()
@@ -110,7 +117,22 @@ export default function NotifyDialog({ entries, open, onOpenChange }: NotifyDial
         if (reviewerPayload.length === 0) continue
 
         if (settings.teamId && settings.channelId) {
-          await sendChannelMessage(settings.teamId, settings.channelId, entry.prTitle, entry.prUrl, reviewerPayload, message)
+          await sendChannelMessage(
+            settings.teamId,
+            settings.channelId,
+            entry.prTitle,
+            entry.prUrl,
+            reviewerPayload,
+            message,
+            {
+              repoName: entry.repoName,
+              prNumber: entry.prNumber,
+              authorLogin: entry.authorLogin,
+              adoWorkItems: entry.adoWorkItems,
+              totalReviewers: entry.totalReviewers,
+              mergeableState: entry.mergeableState,
+            },
+          )
         }
       }
 
@@ -145,14 +167,13 @@ export default function NotifyDialog({ entries, open, onOpenChange }: NotifyDial
         <div className='flex flex-col gap-4'>
           <div className='flex flex-col gap-1.5'>
             <Label className='text-xs font-medium'>Message</Label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={2}
-              className='rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-ring'
+            <RichTextEditor
+              defaultValue='please review this PR.'
+              placeholder='Type a message…'
+              onChange={setMessage}
             />
             <span className='text-[11px] text-muted-foreground'>
-              Sent as: &quot;🔔 PR Review Needed — [PR link] — @mentions — {message}&quot;
+              Sent as rich-text card: 🔔 PR Review Needed → PR link → @mentions → your message
             </span>
           </div>
 

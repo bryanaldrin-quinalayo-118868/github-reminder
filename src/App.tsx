@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { GitPullRequest, Heart, LogOut, Moon, Sun } from 'lucide-react'
+import { InteractionRequiredAuthError } from '@azure/msal-browser'
+import { GitPullRequest, Heart, LogOut, Moon, Sun, TriangleAlert } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Separator } from '@/components/ui/separator'
@@ -10,9 +11,54 @@ import PRTable from '@/features/dashboard/PRTable'
 import NotificationsDialog from '@/components/dashboard/NotificationsDialog'
 import SettingsDialog from '@/components/dashboard/SettingsDialog'
 import { Button } from '@/components/ui/button'
+import { msalInstance, graphScopes } from '@/config/msal'
 import { getStoredToken, getStoredUser, clearAuth } from '@/services/github-auth'
 import usePullRequests from '@/hooks/usePullRequests'
 
+
+function TeamsSessionBanner() {
+  const [expired, setExpired] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    const accounts = msalInstance.getAllAccounts()
+    if (accounts.length === 0) return
+
+    msalInstance
+      .acquireTokenSilent({ scopes: graphScopes, account: accounts[0] })
+      .then(() => setExpired(false))
+      .catch((err) => {
+        if (err instanceof InteractionRequiredAuthError) setExpired(true)
+      })
+  }, [])
+
+  if (!expired) return null
+
+  async function handleReconnect() {
+    setBusy(true)
+    try {
+      await msalInstance.loginPopup({ scopes: graphScopes })
+      setExpired(false)
+    } catch {
+      // user cancelled or popup blocked — keep banner visible
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Button
+      size='sm'
+      variant='ghost'
+      className='cursor-pointer gap-1.5 text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300'
+      onClick={handleReconnect}
+      disabled={busy}
+    >
+      <TriangleAlert className='h-3.5 w-3.5' />
+      <span className='text-xs'>{busy ? 'Signing in…' : 'Teams expired — reconnect'}</span>
+    </Button>
+  )
+}
 
 function DonateDialog() {
   return (
@@ -103,6 +149,7 @@ function App() {
           </div>
         </button>
         <div className='flex items-center gap-1'>
+          <TeamsSessionBanner />
           <DonateDialog />
           <ThemeToggle />
           <NotificationsDialog currentUsername={currentUsername} prs={prs ?? []} />

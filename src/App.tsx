@@ -69,7 +69,7 @@ function TeamsSessionBanner() {
       disabled={busy}
     >
       <TriangleAlert className='h-3.5 w-3.5' />
-      <span className='text-xs'>{busy ? 'Signing in…' : 'Teams expired — reconnect'}</span>
+      <span className='text-xs'>{busy ? 'Signing in…' : 'Teams expired, please reconnect'}</span>
     </Button>
   )
 }

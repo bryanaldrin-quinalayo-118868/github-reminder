@@ -13,6 +13,7 @@ import SettingsDialog from '@/components/dashboard/SettingsDialog'
 import { Button } from '@/components/ui/button'
 import { msalInstance, graphScopes } from '@/config/msal'
 import { getStoredToken, getStoredUser, clearAuth } from '@/services/github-auth'
+import { getTeamsSettings } from '@/config/teams-settings'
 import usePullRequests from '@/hooks/usePullRequests'
 
 
@@ -21,15 +22,28 @@ function TeamsSessionBanner() {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    const accounts = msalInstance.getAllAccounts()
-    if (accounts.length === 0) return
+    function checkSession() {
+      const accounts = msalInstance.getAllAccounts()
+      const teamsSettings = getTeamsSettings()
+      const wasPreviouslyConnected = !!teamsSettings.teamId
 
-    msalInstance
-      .acquireTokenSilent({ scopes: graphScopes, account: accounts[0] })
-      .then(() => setExpired(false))
-      .catch((err) => {
-        if (err instanceof InteractionRequiredAuthError) setExpired(true)
-      })
+      if (accounts.length === 0) {
+        // No MSAL accounts — show banner only if user had Teams configured
+        setExpired(wasPreviouslyConnected)
+        return
+      }
+
+      msalInstance
+        .acquireTokenSilent({ scopes: graphScopes, account: accounts[0] })
+        .then(() => setExpired(false))
+        .catch((err) => {
+          if (err instanceof InteractionRequiredAuthError) setExpired(true)
+        })
+    }
+
+    checkSession()
+    const interval = setInterval(checkSession, 5 * 60 * 1000)
+    return () => clearInterval(interval)
   }, [])
 
   if (!expired) return null

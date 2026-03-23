@@ -281,16 +281,17 @@ function buildAdaptiveCard(
     spacing: 'Small',
   });
 
-  if (cardMessage) {
-    body.push({
-      type: 'TextBlock',
-      text: cardMessage,
-      wrap: true,
-      spacing: 'Small',
-    });
+  if (hostedContents.length > 0) {
+    if (cardMessage) {
+      body.push({
+        type: 'TextBlock',
+        text: cardMessage,
+        wrap: true,
+        spacing: 'Small',
+      });
+    }
+    body.push(...imageElements);
   }
-
-  body.push(...imageElements);
 
   if (prInfo?.adoWorkItems.length) {
     const items = prInfo.adoWorkItems
@@ -362,7 +363,10 @@ async function buildMessagePayload(
   const { mentions, resolved } = await resolveReviewers(reviewers);
   const { cleanedHtml, hostedContents } = extractBase64Images(msg);
 
-  const mentionBody = buildMentionBody(mentions);
+  const hasImages = hostedContents.length > 0;
+  const mentionBody = hasImages
+    ? buildMentionBody(mentions)
+    : `${buildMentionBody(mentions)}${msg}`;
   const adaptiveCard = buildAdaptiveCard(prTitle, prUrl, resolved, cleanedHtml, hostedContents, prInfo);
 
   return { mentionBody, adaptiveCard, mentions, hostedContents };

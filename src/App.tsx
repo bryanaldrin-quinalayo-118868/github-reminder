@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { InteractionRequiredAuthError } from '@azure/msal-browser'
 import { GitPullRequest, Heart, LogOut, Moon, Sun, TriangleAlert } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -13,7 +12,7 @@ import SettingsDialog from '@/components/dashboard/SettingsDialog'
 import { Button } from '@/components/ui/button'
 import { msalInstance, graphScopes } from '@/config/msal'
 import { getStoredToken, getStoredUser, clearAuth } from '@/services/github-auth'
-import { getTeamsSettings } from '@/config/teams-settings'
+import { getTeamsSettings, wasTeamsEverConnected, markTeamsConnected } from '@/config/teams-settings'
 import usePullRequests from '@/hooks/usePullRequests'
 
 
@@ -25,7 +24,7 @@ function TeamsSessionBanner() {
     function checkSession() {
       const accounts = msalInstance.getAllAccounts()
       const teamsSettings = getTeamsSettings()
-      const wasPreviouslyConnected = !!teamsSettings.teamId
+      const wasPreviouslyConnected = !!teamsSettings.teamId || wasTeamsEverConnected()
 
       if (accounts.length === 0) {
         // No MSAL accounts — show banner only if user had Teams configured
@@ -35,9 +34,12 @@ function TeamsSessionBanner() {
 
       msalInstance
         .acquireTokenSilent({ scopes: graphScopes, account: accounts[0] })
-        .then(() => setExpired(false))
-        .catch((err) => {
-          if (err instanceof InteractionRequiredAuthError) setExpired(true)
+        .then(() => {
+          setExpired(false)
+          markTeamsConnected()
+        })
+        .catch(() => {
+          setExpired(true)
         })
     }
 

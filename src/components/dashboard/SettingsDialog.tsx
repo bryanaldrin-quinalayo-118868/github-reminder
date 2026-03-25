@@ -25,7 +25,7 @@ import {
 import { Separator } from '@/components/ui/separator'
 import { msalInstance, graphScopes } from '@/config/msal'
 import { getStoredUser } from '@/services/github-auth'
-import { getTeamsSettings, saveTeamsSettings } from '@/config/teams-settings'
+import { getTeamsSettings, saveTeamsSettings, markTeamsConnected } from '@/config/teams-settings'
 import { fetchJoinedTeams, fetchChannels } from '@/services/graph'
 
 function useIsSignedIn() {
@@ -60,7 +60,9 @@ export default function SettingsDialog() {
       const teamsSettings = getTeamsSettings()
       setSelectedTeamId(teamsSettings.teamId)
       setSelectedChannelId(teamsSettings.channelId)
-      setSignedIn(msalInstance.getAllAccounts().length > 0)
+      const isNowSignedIn = msalInstance.getAllAccounts().length > 0
+      setSignedIn(isNowSignedIn)
+      if (isNowSignedIn) markTeamsConnected()
     }
   }
 

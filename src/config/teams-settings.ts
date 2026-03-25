@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'gh-reminder:teams-settings';
+const WAS_CONNECTED_KEY = 'gh-reminder:teams-was-connected';
 
 type TeamsSettings = {
   teamId: string | null;
@@ -26,4 +27,12 @@ export function getTeamsSettings(): TeamsSettings {
 export function saveTeamsSettings(settings: Partial<TeamsSettings>): void {
   const current = getTeamsSettings();
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...current, ...settings }));
+}
+
+export function markTeamsConnected(): void {
+  localStorage.setItem(WAS_CONNECTED_KEY, 'true');
+}
+
+export function wasTeamsEverConnected(): boolean {
+  return localStorage.getItem(WAS_CONNECTED_KEY) === 'true';
 }

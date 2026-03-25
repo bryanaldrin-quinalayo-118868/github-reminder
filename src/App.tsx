@@ -50,16 +50,9 @@ function TeamsSessionBanner() {
 
   if (!expired) return null
 
-  async function handleReconnect() {
+  function handleReconnect() {
     setBusy(true)
-    try {
-      await msalInstance.loginPopup({ scopes: graphScopes })
-      setExpired(false)
-    } catch {
-      // user cancelled or popup blocked — keep banner visible
-    } finally {
-      setBusy(false)
-    }
+    msalInstance.loginRedirect({ scopes: graphScopes })
   }
 
   return (

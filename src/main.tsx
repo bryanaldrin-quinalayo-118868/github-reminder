@@ -5,10 +5,12 @@ import { createRoot } from 'react-dom/client'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { msalInstance } from '@/config/msal'
+import { enforceAuthVersion } from '@/services/github-auth'
 import { registerNotificationSW } from '@/services/notification-scheduler'
 import App from './App.tsx'
 import './index.css'
 
+enforceAuthVersion()
 registerNotificationSW()
 
 const queryClient = new QueryClient()

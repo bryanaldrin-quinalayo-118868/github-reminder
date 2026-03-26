@@ -1,3 +1,5 @@
+import { getStoredToken } from '@/services/github-auth';
+
 const STORAGE_KEY = 'gh-reminder:user-mappings';
 const GITHUB_API = 'https://api.github.com';
 const OWNER = 'bryanaldrin-quinalayo-118868';
@@ -7,8 +9,8 @@ const FILE_PATH = 'user-mappings.json';
 // Record of { [githubUsername]: teamsEmail }
 type MappingsRecord = Record<string, string>;
 
-function getToken(): string {
-  return import.meta.env.VITE_GITHUB_TOKEN as string;
+function getToken(): string | null {
+  return getStoredToken();
 }
 
 function loadCache(): MappingsRecord {
@@ -41,12 +43,15 @@ export function getAllMappings(): MappingsRecord {
 // --- Async GitHub operations ---
 
 export async function fetchMappings(): Promise<MappingsRecord> {
+  const token = getToken();
+  if (!token) return loadCache();
+
   const res = await fetch(
     `${GITHUB_API}/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`,
     {
       headers: {
         Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${getToken()}`,
+        Authorization: `Bearer ${token}`,
       },
     },
   );
@@ -64,13 +69,16 @@ export async function fetchMappings(): Promise<MappingsRecord> {
 }
 
 export async function saveMappings(mappings: MappingsRecord): Promise<void> {
+  const token = getToken();
+  if (!token) throw new Error('No GitHub token found. Please sign in.');
+
   // Get current file SHA (required for updates)
   const getRes = await fetch(
     `${GITHUB_API}/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`,
     {
       headers: {
         Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${getToken()}`,
+        Authorization: `Bearer ${token}`,
       },
     },
   );
@@ -88,7 +96,7 @@ export async function saveMappings(mappings: MappingsRecord): Promise<void> {
       method: 'PUT',
       headers: {
         Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${getToken()}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

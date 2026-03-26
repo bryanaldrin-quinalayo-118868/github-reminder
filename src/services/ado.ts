@@ -1,14 +1,6 @@
 const ADO_API = 'https://dev.azure.com/nbsdev';
 const PROJECT = 'Daycare';
 
-function getHeaders(): HeadersInit {
-  const pat = import.meta.env.VITE_ADO_PAT as string;
-  return {
-    Authorization: `Basic ${btoa(`:${pat}`)}`,
-    'Content-Type': 'application/json',
-  };
-}
-
 export type AdoWorkItem = {
   id: number;
   url: string;
@@ -19,10 +11,7 @@ export type AdoWorkItem = {
 export async function fetchWorkItemStates(ids: number[]): Promise<AdoWorkItem[]> {
   if (ids.length === 0) return [];
 
-  const res = await fetch(
-    `${ADO_API}/${PROJECT}/_apis/wit/workitems?ids=${ids.join(',')}&fields=System.State,System.IterationPath&api-version=7.1`,
-    { headers: getHeaders() },
-  );
+  const res = await fetch(`/api/ado/workitems?ids=${ids.join(',')}`);
 
   if (!res.ok) return [];
 

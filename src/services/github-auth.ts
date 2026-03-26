@@ -1,11 +1,31 @@
 const TOKEN_KEY = 'gh-reminder:github-token';
 const USER_KEY = 'gh-reminder:github-user';
+const AUTH_VERSION_KEY = 'gh-reminder:auth-version';
+
+// Bump this number to force all users to re-authenticate
+const AUTH_VERSION = 2;
 
 type GitHubUser = {
   login: string;
   avatar_url: string;
   name: string | null;
 };
+
+// ---------------------------------------------------------------------------
+// Auth version gate — call once on app startup
+// ---------------------------------------------------------------------------
+
+export function enforceAuthVersion(): void {
+  const stored = localStorage.getItem(AUTH_VERSION_KEY);
+  if (stored !== String(AUTH_VERSION)) {
+    // Clear all app-owned keys
+    const keysToRemove = Object.keys(localStorage).filter((k) => k.startsWith('gh-reminder:'));
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
+    localStorage.setItem(AUTH_VERSION_KEY, String(AUTH_VERSION));
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Token persistence

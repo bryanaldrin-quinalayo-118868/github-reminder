@@ -7,7 +7,7 @@ const msalConfig = {
     redirectUri: window.location.origin,
   },
   cache: {
-    cacheLocation: 'localStorage' as const,
+    cacheLocation: 'sessionStorage' as const,
     storeAuthStateInCookie: false,
   },
 };

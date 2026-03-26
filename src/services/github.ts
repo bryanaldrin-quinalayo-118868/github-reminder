@@ -14,7 +14,8 @@ type Review = {
 };
 
 function getHeaders(): HeadersInit {
-  const token = getStoredToken() ?? (import.meta.env.VITE_GITHUB_TOKEN as string);
+  const token = getStoredToken();
+  if (!token) throw new Error('No GitHub token found. Please sign in.');
   return {
     Accept: 'application/vnd.github+json',
     Authorization: `Bearer ${token}`,
@@ -132,7 +133,8 @@ const REVIEW_THREADS_QUERY = `
 `;
 
 async function fetchPRReviewThreads(repoName: string, prNumber: number): Promise<ReviewThread[]> {
-  const token = getStoredToken() ?? (import.meta.env.VITE_GITHUB_TOKEN as string);
+  const token = getStoredToken();
+  if (!token) return [];
 
   try {
     const res = await fetch('https://api.github.com/graphql', {

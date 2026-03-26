@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { BellRing } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -9,7 +8,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,6 +21,8 @@ import type { PullRequest } from '@/types/github'
 type NotificationsDialogProps = {
   currentUsername: string | null;
   prs: PullRequest[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 function computeCounts(prs: PullRequest[], username: string) {
@@ -80,8 +80,10 @@ function buildBody(
   return lines.length > 0 ? lines.join('\n') : null
 }
 
-export default function NotificationsDialog({ currentUsername, prs }: NotificationsDialogProps) {
-  const [open, setOpen] = useState(false)
+export default function NotificationsDialog({ currentUsername, prs, open: controlledOpen, onOpenChange: controlledOnOpenChange }: NotificationsDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = controlledOnOpenChange ?? setInternalOpen
   const [settings, setSettings] = useState<NotificationSettings>(getNotificationSettings)
 
   const counts = currentUsername ? computeCounts(prs, currentUsername) : null
@@ -145,12 +147,6 @@ export default function NotificationsDialog({ currentUsername, prs }: Notificati
 
   return (
     <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (v) setSettings(getNotificationSettings()) }}>
-      <DialogTrigger asChild>
-        <Button size='icon-sm' variant='ghost' className='cursor-pointer'>
-          <BellRing className='h-4 w-4' />
-          <span className='sr-only'>Notifications</span>
-        </Button>
-      </DialogTrigger>
       <DialogContent className='max-w-sm'>
         <DialogHeader>
           <DialogTitle>Daily Notifications</DialogTitle>

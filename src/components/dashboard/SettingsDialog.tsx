@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { LogIn, RefreshCw, Settings } from 'lucide-react'
+import { LogIn, RefreshCw } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -33,8 +32,10 @@ function useIsSignedIn() {
   return accounts.length > 0
 }
 
-export default function SettingsDialog() {
-  const [open, setOpen] = useState(false)
+export default function SettingsDialog({ open: controlledOpen, onOpenChange: controlledOnOpenChange }: { open?: boolean; onOpenChange?: (open: boolean) => void } = {}) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const open = controlledOpen ?? internalOpen
+  const setOpen = controlledOnOpenChange ?? setInternalOpen
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null)
   const [signedIn, setSignedIn] = useState(useIsSignedIn)
@@ -54,7 +55,7 @@ export default function SettingsDialog() {
     staleTime: 10 * 60 * 1000,
   })
 
-  function handleOpen(next: boolean) {
+  function handleOpenChange(next: boolean) {
     setOpen(next)
     if (next) {
       const teamsSettings = getTeamsSettings()
@@ -92,17 +93,8 @@ export default function SettingsDialog() {
   return (
     <Dialog
       open={open}
-      onOpenChange={handleOpen}
+      onOpenChange={handleOpenChange}
     >
-      <DialogTrigger asChild>
-        <Button
-          size='icon'
-          variant='outline'
-          className='cursor-pointer'
-        >
-          <Settings className='h-4 w-4' />
-        </Button>
-      </DialogTrigger>
       <DialogContent className='sm:max-w-md'>
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>

@@ -1,6 +1,37 @@
 import { AlertTriangle, Clock, GitPullRequest, Users } from 'lucide-react'
-import { daysAgo } from '@/lib/utils'
+import { cn, daysAgo } from '@/lib/utils'
 import type { PullRequest } from '@/types/github'
+
+type StatCardProps = {
+  icon: typeof GitPullRequest;
+  iconClassName: string;
+  bgClassName: string;
+  value: string | number;
+  valueClassName?: string;
+  label: string;
+  accent?: boolean;
+};
+
+function StatCard({ icon: Icon, iconClassName, bgClassName, value, valueClassName, label, accent }: StatCardProps) {
+  return (
+    <div
+      className={cn(
+        'group relative flex items-center gap-3 overflow-hidden rounded-xl border px-3.5 py-2.5 transition-all duration-200 hover:shadow-md',
+        accent ? 'gradient-border glow' : 'border-border/60 hover:border-border',
+      )}
+    >
+      <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-transform duration-200 group-hover:scale-105', bgClassName)}>
+        <Icon className={cn('h-4.5 w-4.5', iconClassName)} />
+      </div>
+      <div className='min-w-0'>
+        <p className={cn('text-xl font-bold leading-none tracking-tight animate-count-up', valueClassName)}>
+          {value}
+        </p>
+        <p className='mt-0.5 text-[11px] font-medium text-muted-foreground'>{label}</p>
+      </div>
+    </div>
+  )
+}
 
 export default function StatsBanner({ prs }: { prs: PullRequest[] }) {
   const totalOpen = prs.length
@@ -17,47 +48,50 @@ export default function StatsBanner({ prs }: { prs: PullRequest[] }) {
       ? 'text-amber-600 dark:text-amber-400'
       : 'text-emerald-600 dark:text-emerald-400'
 
+  const healthBg = criticalCount > 0
+    ? 'bg-red-500/10'
+    : staleCount > 0
+      ? 'bg-amber-500/10'
+      : 'bg-emerald-500/10'
+
+  const healthIcon = criticalCount > 0
+    ? 'text-red-600 dark:text-red-400'
+    : staleCount > 0
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-emerald-600 dark:text-emerald-400'
+
   return (
-    <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
-      <div className='flex items-center gap-2.5 rounded-lg border px-3 py-2'>
-        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10'>
-          <GitPullRequest className='h-4 w-4 text-primary' />
-        </div>
-        <div>
-          <p className='text-lg font-semibold leading-none'>{totalOpen}</p>
-          <p className='text-[11px] text-muted-foreground'>Open PRs</p>
-        </div>
-      </div>
-
-      <div className='flex items-center gap-2.5 rounded-lg border px-3 py-2'>
-        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-500/10'>
-          <Users className='h-4 w-4 text-blue-600 dark:text-blue-400' />
-        </div>
-        <div>
-          <p className='text-lg font-semibold leading-none'>{needsReview}</p>
-          <p className='text-[11px] text-muted-foreground'>Needs Review</p>
-        </div>
-      </div>
-
-      <div className='flex items-center gap-2.5 rounded-lg border px-3 py-2'>
-        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${criticalCount > 0 ? 'bg-red-500/10' : staleCount > 0 ? 'bg-amber-500/10' : 'bg-emerald-500/10'}`}>
-          <AlertTriangle className={`h-4 w-4 ${healthColor}`} />
-        </div>
-        <div>
-          <p className={`text-lg font-semibold leading-none ${healthColor}`}>{staleCount}</p>
-          <p className='text-[11px] text-muted-foreground'>Stale ({criticalCount} critical)</p>
-        </div>
-      </div>
-
-      <div className='flex items-center gap-2.5 rounded-lg border px-3 py-2'>
-        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted'>
-          <Clock className='h-4 w-4 text-muted-foreground' />
-        </div>
-        <div>
-          <p className='text-lg font-semibold leading-none'>{avgIdle}d</p>
-          <p className='text-[11px] text-muted-foreground'>Avg Idle Time</p>
-        </div>
-      </div>
+    <div className='grid grid-cols-2 gap-2.5 sm:grid-cols-4'>
+      <StatCard
+        icon={GitPullRequest}
+        iconClassName='text-primary'
+        bgClassName='bg-primary/10'
+        value={totalOpen}
+        label='Open PRs'
+      />
+      <StatCard
+        icon={Users}
+        iconClassName='text-blue-600 dark:text-blue-400'
+        bgClassName='bg-blue-500/10'
+        value={needsReview}
+        label='Needs Review'
+      />
+      <StatCard
+        icon={AlertTriangle}
+        iconClassName={healthIcon}
+        bgClassName={healthBg}
+        value={staleCount}
+        valueClassName={healthColor}
+        label={`Stale (${criticalCount} critical)`}
+        accent={criticalCount > 0}
+      />
+      <StatCard
+        icon={Clock}
+        iconClassName='text-muted-foreground'
+        bgClassName='bg-muted'
+        value={`${avgIdle}d`}
+        label='Avg Idle Time'
+      />
     </div>
   )
 }

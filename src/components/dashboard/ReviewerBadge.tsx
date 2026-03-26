@@ -42,21 +42,21 @@ export default function ReviewerBadge({ reviewer }: { reviewer: PendingReviewer 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className='flex items-center gap-1.5 cursor-default'>
+        <div className='flex items-center gap-1.5 cursor-default transition-opacity hover:opacity-80'>
           <div className='relative'>
-            <Avatar className='h-6 w-6'>
+            <Avatar className='h-6 w-6 ring-1 ring-border/40'>
               <AvatarImage src={reviewer.avatar_url} alt={reviewer.login} />
-              <AvatarFallback className='text-[10px]'>
+              <AvatarFallback className='text-[10px] font-semibold'>
                 {reviewer.login.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             {BadgeIcon && (
-              <div className={`absolute -right-1 -bottom-1 flex h-3.5 w-3.5 items-center justify-center rounded-full ${config.badge!.bg} ring-1 ring-background`}>
+              <div className={`absolute -right-1 -bottom-1 flex h-3.5 w-3.5 items-center justify-center rounded-full ${config.badge!.bg} ring-2 ring-background`}>
                 <BadgeIcon className='h-2 w-2 text-white' />
               </div>
             )}
           </div>
-          <span className={`text-xs ${config.text}`}>
+          <span className={`text-xs font-medium ${config.text}`}>
             {reviewer.login.split('-')[0]}
           </span>
         </div>

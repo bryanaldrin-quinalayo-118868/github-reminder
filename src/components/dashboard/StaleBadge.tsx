@@ -8,11 +8,11 @@ export default function StaleBadge({ updatedAt }: { updatedAt: string }) {
   const label = days === 1 ? '1 day' : `${days}d`
   const color =
     days >= 7
-      ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-      : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+      ? 'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20'
+      : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20'
 
   return (
-    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium ${color}`}>
+    <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${color}`}>
       <Clock className='h-2.5 w-2.5' />
       {label} idle
     </span>

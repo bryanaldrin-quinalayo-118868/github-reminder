@@ -48,6 +48,8 @@ jobs:
         env:
           VITE_MSAL_CLIENT_ID: ${{ secrets.VITE_MSAL_CLIENT_ID }}
           VITE_MSAL_TENANT_ID: ${{ secrets.VITE_MSAL_TENANT_ID }}
+      - name: Build API
+        run: cd api && npm install && npm run build
       - name: Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1

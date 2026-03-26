@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BellRing, Heart, LogOut, Monitor, Moon, Settings, Sun } from 'lucide-react'
+import { BellRing, Heart, LogOut, Monitor, Moon, Palette, Settings, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -8,10 +8,16 @@ import {
   DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { COLOR_THEMES, getColorTheme, setColorTheme } from '@/config/color-theme'
 import { getStoredUser } from '@/services/github-auth'
 import type { PullRequest } from '@/types/github'
 
@@ -26,14 +32,12 @@ type UserMenuProps = {
 export default function UserMenu({ currentUsername, onLogout, onOpenNotifications, onOpenSettings }: UserMenuProps) {
   const { theme, setTheme } = useTheme()
   const [donateOpen, setDonateOpen] = useState(false)
+  const [colorTheme, setColorThemeState] = useState(getColorTheme)
   const user = getStoredUser()
 
-  const themeIcon = theme === 'dark' ? Moon : theme === 'light' ? Sun : Monitor
-  const ThemeIcon = themeIcon
-  const themeLabel = theme === 'dark' ? 'Dark' : theme === 'light' ? 'Light' : 'System'
-
-  function cycleTheme() {
-    setTheme(theme === 'light' ? 'dark' : theme === 'dark' ? 'system' : 'light')
+  function handleColorChange(id: string) {
+    setColorTheme(id)
+    setColorThemeState(id)
   }
 
   return (
@@ -64,10 +68,42 @@ export default function UserMenu({ currentUsername, onLogout, onOpenNotification
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem className='cursor-pointer' onClick={cycleTheme}>
-              <ThemeIcon className='h-4 w-4' />
-              Theme: {themeLabel}
-            </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger className='cursor-pointer'>
+                <Palette className='h-4 w-4' />
+                Theme
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuLabel className='text-xs text-muted-foreground'>Mode</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+                  <DropdownMenuRadioItem className='cursor-pointer' value='light'>
+                    <Sun className='h-3.5 w-3.5' />
+                    Light
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem className='cursor-pointer' value='dark'>
+                    <Moon className='h-3.5 w-3.5' />
+                    Dark
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem className='cursor-pointer' value='system'>
+                    <Monitor className='h-3.5 w-3.5' />
+                    System
+                  </DropdownMenuRadioItem>
+                </DropdownMenuRadioGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className='text-xs text-muted-foreground'>Color</DropdownMenuLabel>
+                <DropdownMenuRadioGroup value={colorTheme} onValueChange={handleColorChange}>
+                  {COLOR_THEMES.map((t) => (
+                    <DropdownMenuRadioItem key={t.id} className='cursor-pointer' value={t.id}>
+                      <span
+                        className='inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-border/60'
+                        style={{ backgroundColor: t.preview }}
+                      />
+                      {t.label}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             {currentUsername && (
               <DropdownMenuItem className='cursor-pointer' onClick={onOpenNotifications}>
                 <BellRing className='h-4 w-4' />

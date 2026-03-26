@@ -7,11 +7,13 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { msalInstance } from '@/config/msal'
 import { enforceAuthVersion } from '@/services/github-auth'
 import { registerNotificationSW } from '@/services/notification-scheduler'
+import { applyColorTheme, getColorTheme } from '@/config/color-theme'
 import App from './App.tsx'
 import './index.css'
 
 enforceAuthVersion()
 registerNotificationSW()
+applyColorTheme(getColorTheme())
 
 const queryClient = new QueryClient()
 
